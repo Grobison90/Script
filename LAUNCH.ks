@@ -100,7 +100,7 @@ GLOBAL function doCountDown{
 
     }
     voice:PLAY(NOTE(freq*2, 0.75)).
-    logEntry("Liftoff").
+    if _FLIGHT_MANAGER notify("Liftoff").
 }
 
 GLOBAL function doBoostUp {
@@ -112,7 +112,7 @@ GLOBAL function doBoostUp {
     lock steering to UP * R(0,0,180).//TODO is this right?
     doSafeStage().
     wait until ship:airspeed > speedThresh  and ship:altitude > altThresh.
-    logEntry("Boost-up complete").
+    if _FLIGHT_MANAGER notify("Boost-up complete").
 }
 
 GLOBAL function doRollProgram {
@@ -120,7 +120,7 @@ GLOBAL function doRollProgram {
     lock steering to heading(launchAzimuth, 90, 0).//this may be wrong TODO
     wait until (getdXdT({return VANG(UP:VECTOR, ship:facing:topvector).}) < 0.1). //TODO make this wait until we're actually facing the right direction
     //print SHIP:FACING:ROLL at(10, 20).
-    logEntry("Roll Program Complete").
+    if _FLIGHT_MANAGER notify("Roll Program Complete").
 }
 
 GLOBAL function doPitchProgram {
@@ -130,7 +130,7 @@ GLOBAL function doPitchProgram {
         WHEN (ship:altitude > 50000 and getAcceleration(0.01) < 9.8) THEN {
             launchEscapeTower[0]:activate.
             launchEscapeTower[0]:getmodule("ModuleDecouple"):DOACTION("Decouple",true).
-            logEntry("LES Discarded").
+            if _FLIGHT_MANAGER notify("LES Discarded").
         }
     }
 
@@ -159,7 +159,7 @@ GLOBAL function doSuborbitalLaunch{
     parameter stageQ.
     parameter targetAzimuth is 90.
     parameter targetApoapsis is 80000.
-    parameter curveK is 01.
+    parameter curveK is 1.
 
     set launchAzimuth to targetAzimuth.
     set launchApoapsis to targetApoapsis.
@@ -304,7 +304,7 @@ for d in parachutes{
 wait until ship:altitude < 75000.
 
 LOCK STEERING to UP + R(45,0,0).
-logEntry("Decoupling.").
+if _FLIGHT_MANAGER notify("Decoupling.").
 wait 5.
 
 decouplerModule:DOEVENT("decouple").
@@ -378,7 +378,7 @@ GLOBAL function doSafeStage{
     local coldStageSepTime is 2.
     
     wait until stage:ready.
-    logEntry("Stage " + ship:stagenum + " complete").
+    if _FLIGHT_MANAGER notify("Stage " + ship:stagenum + " complete").
 
     if isHotStage {
         stage.
@@ -399,7 +399,7 @@ GLOBAL function updateTelemetry{//This method is going to continue to update fli
         set maxDynPressure to ship:dynamicPressure.
         }
         if(maxDynPressure >= 0.005 and ship:dynamicPressure < maxDynPressure and not maxQAchieved){
-            logEntry("Max Q").
+            if _FLIGHT_MANAGER notify("Max Q").
             set maxQAchieved to true.
 
         }
@@ -421,7 +421,7 @@ function monitorFlight{//This method is purely for monitoring for flight warning
 
     if ship:DELTAV = 0 and launchApoapsis > ship:apoapsis {
         setOperationStatus("Error. See Log.").
-        logEntry("Target Apoapsis Not Achieved").
+        if _FLIGHT_MANAGER notify("Target Apoapsis Not Achieved").
     }
 
     if(WARNING){
@@ -430,7 +430,7 @@ function monitorFlight{//This method is purely for monitoring for flight warning
     if(ABORT){
         set launchAbortFlag to true.
         doAbortSequence().
-        logEntry("ABORT: " + errorText).
+        if _FLIGHT_MANAGER notify("ABORT: " + errorText).
 
     }
 }
