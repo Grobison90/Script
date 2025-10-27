@@ -204,13 +204,10 @@ GLOBAL function doToOrbitLaunch {
     set launchApoapsis to targetApoapsis.
     set curveConstant to curveK.
 
-//Preflight Checks:---------------
     doPreflightChecks().
-//--------------------------------
     resolveErrors().
 
-
-        when AutoPilotOn then{
+    when AutoPilotOn then{
         monitorFlight().
         updateTelemetry().
         updateDisplay().
@@ -275,7 +272,7 @@ GLOBAL function createOrbitalInsertionManeuver{
 GLOBAL function doDeorbit{
     parameter target_periapsis.
 
-    setFlightStatus("De-Orbit")
+    setFlightStatus("De-Orbit").
     lock steering to retrograde.
     lock throttle to 1.
     wait until SHIP:PERIAPSIS <= target_periapsis.
@@ -317,7 +314,7 @@ LOCK STEERING TO (-1) * SHIP:VELOCITY:SURFACE.
 
 wait until ship:altitude < 20000.
 deploySafeChutes().
-
+wait until ship:STATUS = "Landed" or ship:STATUS = "Splashed".
 }
 
 GLOBAL function deploySafeChutes{

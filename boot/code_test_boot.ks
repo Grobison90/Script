@@ -1,10 +1,19 @@
 //Terminal Management
 core:part:getmodule("kOSProcessor"):doevent("Open Terminal").
-wait 1.
 
 print "Booting.".
-wait 1.
+runOncePath("0:/FLIGHT_MANAGER.ks").
+runOncePath("0:/LAUNCH.ks").
+runOncePath("0:/DISPLAY.ks").
 
+wait 1.
 CLEARSCREEN.
-runOncePath("0:/CODE_TEST.ks").
-print "Code Test Complete.".
+
+local FLIGHT_PLAN is list(
+doToOrbitLaunch:BIND(90,80000,0.35),
+{wait 10.},//wait in orbit just a second.
+doDeorbit:BIND(35000),
+doReentry@
+).
+
+manageFlight(FLIGHT_PLAN).

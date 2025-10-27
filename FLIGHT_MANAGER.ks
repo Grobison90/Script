@@ -1,6 +1,15 @@
 local _FLIGHT_STATUS is "Prelaunch".
 local _OPERATION_STATUS is "Nominal".
+local _DISPLAY is false.
 GLOBAL _ERROR_QUEUE is queue().
+
+GLOBAL function manageFlight{
+    parameter flightPlan.
+
+    for phase in flightPlan{
+        phase:call().
+    }
+}
 
 global function setFlightStatus{
     parameter fs.
