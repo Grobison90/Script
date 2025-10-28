@@ -15,6 +15,8 @@ GLOBAL function getStageTWR{
     return getStageThrust(stageNum) / ship:mass.
 }
 
+
+
 GLOBAL function getStageThrust{
     parameter stageNum.
 

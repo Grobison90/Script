@@ -11,10 +11,10 @@ CLEARSCREEN.
 
 global _FLIGHT_MANAGER is true.
 local FLIGHT_PLAN is list(
-doToOrbitLaunch:BIND(90,80000,0.35),
+doToOrbitLaunch@:BIND(90,80000,0.35),
 {wait 10.},//wait in orbit just a second.
-doDeorbit:BIND(35000),
+doDeorbit@:BIND(35000),
 doReentry@
 ).
 
-manageFlight(FLIGHT_PLAN).
+manageFlight(FLIGHT_PLAN, true).

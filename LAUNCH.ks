@@ -8,7 +8,6 @@ runOncePath("0:/FLIGHT_MANAGER.ks").
 local padAbortFlag is false.
 local launchAbortFlag is false.
 local curveConstant is 0.35. //this constant varies between 0 & 1 with values closer to 1 biasing towards a steeper initial ascent, and 0 being a linear
-LOCAL thrustDropThreshold to 0.95. //this is the decimal drop that triggers a stage (i.e. when thrust drops below 0.9 of initial stage thrust)
 
 //Tracked data during launch.
 local launchEscapeTowers is ship:PARTSNAMEDPATTERN(".*engine-les.*").
@@ -18,6 +17,7 @@ local autoPilotOn is true.
 local stagingLock is false.
 local apoapsisAchieved is false.
 local orbitAchieved is false.
+local errorMessages is queue().
 
 
 GLOBAL function doPreflightChecks{
@@ -100,7 +100,7 @@ GLOBAL function doCountDown{
 
     }
     voice:PLAY(NOTE(freq*2, 0.75)).
-    if _FLIGHT_MANAGER notify("Liftoff").
+    lock throttle to 1.
 }
 
 GLOBAL function doBoostUp {
@@ -110,7 +110,11 @@ GLOBAL function doBoostUp {
     setFlightStatus("Boost-Up"). 
     lock throttle to 1.
     lock steering to UP * R(0,0,180).//TODO is this right?
-    doSafeStage().
+    STAGE.
+    on (ship:airspeed > 0.5) {
+        if _FLIGHT_MANAGER notify("Liftoff").
+    }
+
     wait until ship:airspeed > speedThresh  and ship:altitude > altThresh.
     if _FLIGHT_MANAGER notify("Boost-up complete").
 }
@@ -148,10 +152,10 @@ GLOBAL function doPitchProgram {
 
 GLOBAL function doStaging{
     if not stagingLock{
-        if ship:availableThrust < ( thrustT0 * thrustDropThreshold ) {
+        print(ship:stagedeltav(ship:stagenum):current)at(0,0).
+        if (ship:stagedeltav(ship:stagenum):current < 1.0) {
         doSafeStage(). 
         }
-        set thrustT0 to ship:availablethrust.
     }
 }
 
@@ -191,6 +195,7 @@ GLOBAL function doSuborbitalLaunch{
         doPitchProgram().
         doReentry().
 
+        //Check subroutine for errors, and report to FLIGHT_MANAGER. TODO
     }.
 
 }
@@ -228,6 +233,7 @@ GLOBAL function doToOrbitLaunch {
         doOrbitalInsertion().
         doShutdownSequence().
     }
+    //Check subroutine for errors, and report to FLIGHT_MANAGER. TODO
 }
 
 GLOBAL function doLaunchToSpecifiedOrbit{
@@ -242,6 +248,9 @@ GLOBAL function doLaunchToSpecifiedOrbit{
     //AN is = to LAN right?
     //launch to a circular orbit, and then hohman to target orbit.
 
+
+
+    //Check subroutine for errors, and report to FLIGHT_MANAGER.TODO
 }
 
 GLOBAL function doOrbitalInsertion{
@@ -315,6 +324,8 @@ LOCK STEERING TO (-1) * SHIP:VELOCITY:SURFACE.
 wait until ship:altitude < 20000.
 deploySafeChutes().
 wait until ship:STATUS = "Landed" or ship:STATUS = "Splashed".
+
+//Check subroutine for errors, and report to FLIGHT_MANAGER. TODO
 }
 
 GLOBAL function deploySafeChutes{
@@ -412,7 +423,7 @@ function monitorFlight{//This method is purely for monitoring for flight warning
     local ABORT is false.
     local errorText is "".
     
-    local AoA_MAX is 30.
+    local AoA_MAX is 15.
     local AoA is VANG(ship:FACING:FOREVECTOR, ship:VELOCITY:SURFACE).
     if AoA > AoA_MAX and ship:airspeed > 25{
         set ABORT to TRUE.

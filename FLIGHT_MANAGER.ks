@@ -2,7 +2,7 @@
 // It will call those delegated subroutines and if they return errors, or suboptimal results, FLIGHT_MANAGER will deal with them. For now
 // much of it will probably be un-implemented. It will also be in charge of managing user interfaces like "DISPLAY"
 
-runOncePath("DISPLAY.ks").
+runOncePath("0:/DISPLAY.ks").
 
 local _FLIGHT_STATUS is "Prelaunch".
 local _OPERATION_STATUS is "Nominal".
@@ -14,7 +14,9 @@ GLOBAL function manageFlight{
     parameter display.
 
     for phase in flightPlan{
-        phase:call().
+        local errors is phase:call().
+        _ERROR_QUEUE:push(errors).
+        //Manage these errors somehow.
     }
 }
 
@@ -41,5 +43,5 @@ GLOBAL function notify{
     if _DISPLAY{
         logEntry(message).
     }
-    else hudtext(message).
+    else hudtext(message, 3, 1, 48, yellow, true).
 }
