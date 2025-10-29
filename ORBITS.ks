@@ -1,8 +1,6 @@
     
 GLOBAL function vectorToAngleDegrees{
-    parameter vec.
-
-
+    parameter vec. //TODO
 }
 
 GLOBAL function angleDegreesToVector{
@@ -15,23 +13,6 @@ GLOBAL function angleDegreesToVector{
 
 }
 
-GLOBAL function createTargetOrbit{
-    parameter TARGET_BODY.
-    parameter TARGET_APOAPSIS.
-    parameter TARGET_PERIAPSIS.
-    parameter TARGET_ECCENTRICITY.
-    
-    parameter TARGET_INCLINATION.
-    parameter TARGET_LAN.
-    parameter TARGET_AoP.
-
-    local TARGET_SMA is calculateSMA(TARGET_APOAPSIS, TARGET_PERIAPSIS, TARGET_BODY).
-
-    return createOrbit(TARGET_INCLINATION, TARGET_ECCENTRICITY, TARGET_SMA, TARGET_LAN, TARGET_AoP, 0, TIME:SECONDS, TARGET_BODY ).
-    
-}
-
-
 GLOBAL function visViva{
     parameter radius.
     parameter SMA.
@@ -40,58 +21,64 @@ GLOBAL function visViva{
     return sqrt(parentBody:MU * ((2 / radius) - (1 / SMA))).
 }
 
+GLOBAL function planHohmantoTransfer{
+    parameter targetOrbit.
+    parameter atTime.
+
+    local r1 is ship:orbit:SEMIMAJORAXIS. 
+    local r2 is targetOrbit:SEMIMAJORAXIS.
+
+    local dV1 is visViva(r1, (r1 + r2)/2, ship:body) - visViva(r1, r1, ship:body). // 
+    ADD NODE(atTime, 0, 0, dV1).//TODO make this ASAP?
+}
+
+GLOBAL function hohmanTransitTime{
+    parameter targetOrbit.
+
+    local meanTargetAlt is (targetOrbit:APOAPSIS + targetOrbit:PERIAPSIS) / 2.
+    local r1 is ship:orbit:semimajoraxis.
+    local r2 is ship:orbit:semimajoraxis.
+    return CONSTANT():PI * sqrt(((r1+r2)/2)^3 / ship:body:MU).
+}
 
 GLOBAL function planHohmanToOrbit{ // assuming a roughly circular starting orbit
 //todo
     parameter targetOrbit.
-   
-    //meanTargetAlt = (targetOrbit:APOAPSIS + targetOrbit:PERIAPSIS) / 2.
-    local meanTargetAlt is (targetOrbit:APOAPSIS + targetOrbit:PERIAPSIS) / 2.
-    local r1 is ship:orbit:apoapsis + ship:orbit:body:radius. 
-    local r2 is meanTargetAlt + targetOrbit:body:radius.
+    parameter atTime.
 
-    local dV1 is visViva(r1, (r1 + r2), ship:body) - visViva(r1, r1, ship:body).
-    local burn1ETA is TIME:SECONDS + 60.
-    ADD NODE(TIME:SECONDS + 60, 0, 0, dV1).//TODO make this ASAP?
+    local r1 is ship:orbit:SEMIMAJORAXIS. 
+    local r2 is targetOrbit:SEMIMAJORAXIS.
 
-    local dV2 is visViva(r2, 2*r2, ship:body) - visViva(r2, (r1+r2), ship:body).
-    local transitTime is CONSTANT():PI * sqrt((r1+r2)^3 / ship:body:MU).
-    ADD NODE(burn1ETA + transitTime, 0, 0, dV2).
+    planHohmantoTransfer(targetOrbit, atTime).
+
+    local dV2 is visViva(r2, r2, ship:body) - visViva(r2, (r1+r2)/2, ship:body).
     
+    ADD NODE(atTime + hohmanTransitTime, 0, 0, dV2).
+}
 
+GLOBAL function planHohmanToIntercept{
+    parameter target.
 
 }
 
-GLOBAL function calculateSMA{
-    parameter ORBIT_APOAPSIS.
-    parameter ORBIT_PERIAPSIS.
-    parameter ORBIT_BODY.
+GLOBAL function meanMotion{
+    parameter satellite.
 
-    set rA to ORBIT_APOAPSIS + ORBIT_BODY:RADIUS.
-    set rP to ORBIT_PERIAPSIS + ORBIT_BODY:RADIUS.
-
-    return ( rA + rP )/2.
-}
-
-GLOBAL function calculateEccentricity{
-    parameter ORBIT_APOAPSIS.
-    parameter ORBIT_PERIAPSIS.
-    parameter ORBIT_BODY.
-
-    set rA to ORBIT_APOAPSIS + ORBIT_BODY:RADIUS.
-    set rP to ORBIT_PERIAPSIS + ORBIT_BODY:RADIUS.
-
-    return ((rA - rP)/(rA + rP)).
-
-}
-
-GLOBAL function calculateMeanMotionFromSMA{
-    parameter SMA.
-    parameter ORBIT_BODY.
-
-    set BODY_MU to ORBIT_BODY:MU.
+    set SMA to satellite:ORBIT:SEMIMAJORAXIS.
+    set BODY_MU to satellite:ORBIT:BODY:MU.
 
     return SQRT(BODY_MU/SMA^3) * CONSTANT:radtodeg.
+}
+
+GLOBAL function trueAnomalyAtTime{
+    parameter satellite.
+    parameter t.
+
+    local meanMotion to meanMotion(satellite).
+    local deltaT to t - satellite:ORBIT:EPOCH.
+    local meanAnomalyAtT to (deltaT * meanMotion) + satellite:ORBIT:MEANANOMALYATEPOCH.
+    return meanAnomalyToTrueAnomaly(meanAnomalyAtT, satellite:ORBIT:ECCENTRICITY).
+
 }
 
 //THIS FUNCTION WAS TRANSCRIBED FROM https://github.com/lbaars/orbit-nerd-scripts. IT IS UNTESTED. TODO
@@ -196,13 +183,15 @@ local function eccentricAnomalyToTrueAnomaly{
 }
 
 GLOBAL function timeUntilTrueAnomaly{//this will take a true anomaly and return the time until ship reaches this true anomaly next.
+    parameter satellite.
     parameter TRUE_ANOMALY_DEG.
+
 
     print "TRUE_ANOM DEG: " + TRUE_ANOMALY_DEG.
 
-    local MEAN_ANOMALY_DEG is trueAnomalyToMeanAnomaly(TRUE_ANOMALY_DEG, ship:orbit:eccentricity).
-    local CURRENT_MEAN_ANOMALY is trueAnomalyToMeanAnomaly(ship:orbit:trueanomaly, ship:orbit:eccentricity).
-    local MEAN_MOTION is calculateMeanMotionFromSMA(ship:orbit:SEMIMAJORAXIS, ship:orbit:body).
+    local MEAN_ANOMALY_DEG is trueAnomalyToMeanAnomaly(TRUE_ANOMALY_DEG, satellite:orbit:eccentricity).
+    local CURRENT_MEAN_ANOMALY is trueAnomalyToMeanAnomaly(satellite:orbit:trueanomaly, satellite:orbit:eccentricity).
+    local MEAN_MOTION is meanMotion(satellite).
 
     // print "mean anom deg: " + MEAN_ANOMALY_DEG.
     // print "curr anom deg: " + CURRENT_MEAN_ANOMALY.

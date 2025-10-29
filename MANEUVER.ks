@@ -14,9 +14,8 @@ GLOBAL function executeManeuver{
     parameter mnvr, isPrecise.
 
     local startTime to calculateBurnStartTime(mnvr, isPrecise).
-
-    wait until TIME:SECONDS > startTime - 10.
     lock steering to mnvr:burnvector.
+    wait until TIME:SECONDS > startTime - 10.
 
     local dV0 is mnvr:DELTAV.
     if isPrecise {burnPrecisely().}

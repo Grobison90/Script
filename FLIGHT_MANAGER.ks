@@ -43,5 +43,5 @@ GLOBAL function notify{
     if _DISPLAY{
         logEntry(message).
     }
-    else hudtext(message, 3, 1, 48, yellow, true).
+    else hudtext(message, 3, 2, 32, yellow, true).
 }

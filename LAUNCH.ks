@@ -110,7 +110,6 @@ GLOBAL function doBoostUp {
     setFlightStatus("Boost-Up"). 
     lock throttle to 1.
     lock steering to UP * R(0,0,180).//TODO is this right?
-    STAGE.
     on (ship:airspeed > 0.5) {
         if _FLIGHT_MANAGER notify("Liftoff").
     }
@@ -131,9 +130,10 @@ GLOBAL function doPitchProgram {
     setFlightStatus("Pitch Program").
 
     if(launchEscapeTowers:length > 0){
-        WHEN (ship:altitude > 50000 and getAcceleration(0.01) < 9.8) THEN {
-            launchEscapeTower[0]:activate.
-            launchEscapeTower[0]:getmodule("ModuleDecouple"):DOACTION("Decouple",true).
+        local LES is launchEscapeTowers[0].
+        WHEN (ship:altitude > 20000 and getAcceleration(0.01) < 2*9.8) THEN {
+            LES:activate.
+            LES:getmodule("ModuleDecouple"):DOACTION("Decouple",true).
             if _FLIGHT_MANAGER notify("LES Discarded").
         }
     }
@@ -152,8 +152,7 @@ GLOBAL function doPitchProgram {
 
 GLOBAL function doStaging{
     if not stagingLock{
-        print(ship:stagedeltav(ship:stagenum):current)at(0,0).
-        if (ship:stagedeltav(ship:stagenum):current < 1.0) {
+        if (stage:DELTAV:current < 1.0) {
         doSafeStage(). 
         }
     }
@@ -353,8 +352,12 @@ function doAbortSequence {
     setFlightStatus("ABORTING!").
     setOperationStatus("OFF NOMINAL, ERROR.").
     updateDisplay().
-    wait until launchEscapeTower:FLAMEOUT.
-    launchEscapeTower:GETMODULE("ModuleDecouple"):DOACTION("Decouple", true).
+    if(launchEscapeTowers:length > 0){
+        local LES is launchEscapeTowers[0].
+        if (not LES:IGNITION) LES:ACTIVATE.
+        wait until LES:FLAMEOUT.
+        LES:GETMODULE("ModuleDecouple"):DOACTION("Decouple", true).
+    }
     lock STEERING to ship:srfretrograde.
     wait until ship:verticalspeed < 0.
     deploySafeChutes().
