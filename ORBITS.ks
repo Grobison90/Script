@@ -59,26 +59,67 @@ GLOBAL function planHohmanToOrbit{ // assuming a roughly circular starting orbit
 GLOBAL function planHohmanToIntercept{
     parameter target.
 
+    //The transit time for the maneuver for the hohmann transfer orbit
+    local transitTime is hohmanTransitTime(target:ORBIT).
+    //targets TA at time now + transitTime (this will lag the actual position, because we'll have to orbit to the transfer burn).
+    local targetTAatTransfer is trueAnomalyAtTime(target, TIME:SECONDS + transitTime).
+    //We're going to transfer burn 180 out from the targets predicted position after t+transitTime.
+    local longitudeOfTransferBurn0 is mod((targetTAatTransfer + 180), 360).
+    //trueLongitude of that longitude of transfer burn.
+    local TLofTransferBurn is trueLongitude(longitudeOfTransferBurn0, target:orbit).
+
+    //current True Longitude of ship.
+    local shipTrueLong is trueLongitude(ship:orbit:TRUEANOMALY, ship:orbit).
+    //How any degrees we have to orbit until transfer time.
+    local degreesUntilTransfer is mod(TLofTransferBurn - shipTrueLong + 360, 360).
+    //Begin working on time until transfer:
+    local meanAnomalyAtTransfer is trueAnomalyToMeanAnomaly(ship:orbit:TRUEANOMALY + degreesUntilTransfer).
+    
+    local shipCurrentMeanAnomaly is ship:ORBIT:MEANANOMALYATEPOCH + meanMotion(ship) * (TIME:SECONDS - ship:ORBIT:EPOCH).
+    local secondsUntilTransfer is (meanAnomalyAtTransfer - shipCurrentMeanAnomaly) / meanMotion(ship:ORBIT).
+    planHohmanToTransfer(TIME:SECONDS + secondsUntilTransfer).
+
 }
 
 GLOBAL function meanMotion{
-    parameter satellite.
+    parameter _orbit.
 
-    set SMA to satellite:ORBIT:SEMIMAJORAXIS.
-    set BODY_MU to satellite:ORBIT:BODY:MU.
+    set SMA to _orbit:SEMIMAJORAXIS.
+    set BODY_MU to _orbit:BODY:MU.
 
     return SQRT(BODY_MU/SMA^3) * CONSTANT:radtodeg.
+}
+
+GLOBAL function meanAnomaly{
+    parameter _orbit.
+
+    local deltaT is TIME:SECONDS - _orbit:EPOCH.
+    return meanMotion(_orbit) * deltaT + _orbit:MEANANOMALYATEPOCH.
 }
 
 GLOBAL function trueAnomalyAtTime{
     parameter satellite.
     parameter t.
 
-    local meanMotion to meanMotion(satellite).
+    local meanMotion to meanMotion(satellite:ORBIT).
     local deltaT to t - satellite:ORBIT:EPOCH.
     local meanAnomalyAtT to (deltaT * meanMotion) + satellite:ORBIT:MEANANOMALYATEPOCH.
     return meanAnomalyToTrueAnomaly(meanAnomalyAtT, satellite:ORBIT:ECCENTRICITY).
 
+}
+GLOBAL function longitudeOfPeriapsis{
+    parameter _orbit.
+
+    return mod(_orbit:LAN + _orbit:ARGUMENTOFPERIAPSIS, 360).
+
+}
+
+GLOBAL function trueLongitude{
+    parameter TA.
+    parameter _orbit.
+
+    return mod(TA + longitudeOfPeriapsis(_orbit)).
+    
 }
 
 //THIS FUNCTION WAS TRANSCRIBED FROM https://github.com/lbaars/orbit-nerd-scripts. IT IS UNTESTED. TODO
