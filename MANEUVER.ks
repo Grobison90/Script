@@ -54,7 +54,7 @@ GLOBAL function calculateBurnStartTimeSimply{
     parameter mnvr.
     //will be accurate enough for short burns.
     local burnTime is (mnvr:DELTAV:mag / (ship:maxThrust / ship:mass)).
-return mnvr:TIME - (burnTime / 2).
+    return mnvr:TIME - (burnTime / 2).
 }
 
 GLOBAL function calculateBurnStartTimeIntegration{
@@ -68,7 +68,7 @@ GLOBAL function calculateBurnStartTimeIntegration{
     local shipMass is SHIP:MASS * 10^3. //SHIP:MASS is in metric tons, converting to kg.
     local C is calculateConstant().
 
-    local exponent is ((massFlow/Tau) * (c-dV/2)). // just breaking this down so it's easier to math. Used in next line.
+    local exponent is ((massFlow/Tau) * (C-dV/2)). // just breaking this down so it's easier to math. Used in next line.
     local halfBurn is (-1 * (CONSTANT:E^(exponent) - shipMass) / massFlow ).
 
     function calculateConstant{
