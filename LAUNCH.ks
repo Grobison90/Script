@@ -1,14 +1,11 @@
-runOncePath("0:/MATH.ks").
-runOncePath("0:/MANEUVER.ks").
-runOncePath("0:/SHIP.ks").
-runOncePath("0:/DISPLAY.ks").
-runOncePath("0:/ORBITS.ks").
-runOncePath("0:/FLIGHT_MANAGER.ks").
+
+GLOBAL _LAUNCH_AZIMUTH is "-".
+GLOBAL _TARGET_APOAPSIS is "-".
+GLOBAL _AoA_MAX is 15.
 
 local padAbortFlag is false.
 local launchAbortFlag is false.
 local curveConstant is 0.35. //this constant varies between 0 & 1 with values closer to 1 biasing towards a steeper initial ascent, and 0 being a linear
-
 //Tracked data during launch.
 local launchEscapeTowers is ship:PARTSNAMEDPATTERN(".*engine-les.*").
 local maxDynPressure is 0.
@@ -17,7 +14,6 @@ local autoPilotOn is true.
 local stagingLock is false.
 local apoapsisAchieved is false.
 local orbitAchieved is false.
-local errorMessages is queue().
 
 
 GLOBAL function doPreflightChecks{
@@ -111,43 +107,50 @@ GLOBAL function doBoostUp {
     lock throttle to 1.
     lock steering to UP * R(0,0,180).//TODO is this right?
     on (ship:airspeed > 0.5) {
-        if _FLIGHT_MANAGER notify("Liftoff").
+        notify("Liftoff").
     }
 
     wait until ship:airspeed > speedThresh  and ship:altitude > altThresh.
-    if _FLIGHT_MANAGER notify("Boost-up complete").
+    notify("Boost-up complete").
 }
 
 GLOBAL function doRollProgram {
-    setFlightStatus("Roll Program").
-    lock steering to heading(launchAzimuth, 90, 0).//this may be wrong TODO
+    SET _FLIGHT_STATUS TO "Roll Program".
+    lock steering to heading(_LAUNCH_AZIMUTH, 90, 0).//this may be wrong TODO
     wait until (getdXdT({return VANG(UP:VECTOR, ship:facing:topvector).}) < 0.1). //TODO make this wait until we're actually facing the right direction
     //print SHIP:FACING:ROLL at(10, 20).
-    if _FLIGHT_MANAGER notify("Roll Program Complete").
+    notify("Roll Program Complete").
 }
 
 GLOBAL function doPitchProgram {
-    setFlightStatus("Pitch Program").
+    SET _FLIGHT_STATUS TO "Pitch Program".
 
     if(launchEscapeTowers:length > 0){
         local LES is launchEscapeTowers[0].
-        WHEN (ship:altitude > 20000 and getAcceleration(0.01) < 2*9.8) THEN {
+        WHEN (ship:altitude > 30000 and getAcceleration(0.01) < 2*9.8) THEN {
             LES:activate.
             LES:getmodule("ModuleDecouple"):DOACTION("Decouple",true).
-            if _FLIGHT_MANAGER notify("LES Discarded").
+            launchEscapeTowers:remove(0).
+            notify("LES Discarded").
         }
     }
 
-    lock targetPitch to 90 * ( 1 - ( alt:radar / launchApoapsis) ^ curveConstant ).    //This is the pitch function.
-    lock steering to heading(launchAzimuth, targetPitch).
+    lock targetPitch to launchTargetPitch(ALT:RADAR).
+    lock steering to heading(_LAUNCH_AZIMUTH, targetPitch).
     
-    wait until ship:apoapsis >= launchApoapsis.
+    wait until ship:apoapsis >= _TARGET_APOAPSIS.
+
     
     set stagingLock to true.
     lock steering to ship:velocity:surface.
     lock throttle to 0.
     wait until ship:THRUST = 0.
+    wait until ship:altitude > 70000.
 
+}
+GLOBAL function launchTargetPitch{
+    parameter alt.
+    return 90 * ( 1 - ( alt / 75000) ^ curveConstant ).    //This is the pitch function.
 }
 
 GLOBAL function doStaging{
@@ -159,15 +162,13 @@ GLOBAL function doStaging{
 }
 
 GLOBAL function doSuborbitalLaunch{
-    parameter stageQ.
     parameter targetAzimuth is 90.
     parameter targetApoapsis is 80000.
     parameter curveK is 1.
 
-    set launchAzimuth to targetAzimuth.
-    set launchApoapsis to targetApoapsis.
+    GLOBAL _LAUNCH_AZIMUTH to targetAzimuth.
+    GLOBAL _TARGET_APOAPSIS to targetApoapsis.
     set curveConstant to curveK.
-    set stageQueue to stageQ.
     
     when AutoPilotOn then{
         monitorFlight().
@@ -176,7 +177,7 @@ GLOBAL function doSuborbitalLaunch{
         PRESERVE.
     }.
 
-    set errorMessages to doPreflightChecks().
+    SET _ERROR_QUEUE TO doPreflightChecks().
 
     resolveErrors().
   
@@ -204,11 +205,11 @@ GLOBAL function doToOrbitLaunch {
     parameter targetApoapsis is 100000.
     parameter curveK is 0.35.
 
-    set launchAzimuth to targetAzimuth.
-    set launchApoapsis to targetApoapsis.
+    GLOBAL _LAUNCH_AZIMUTH IS targetAzimuth.
+    GLOBAL _TARGET_APOAPSIS to targetApoapsis.
     set curveConstant to curveK.
 
-    doPreflightChecks().
+    SET _ERROR_QUEUE TO doPreflightChecks().
     resolveErrors().
 
     when AutoPilotOn then{
@@ -236,7 +237,7 @@ GLOBAL function doToOrbitLaunch {
 }
 
 GLOBAL function doLaunchToSpecifiedOrbit{
-    parameter TARGET_ORBIT.
+    parameter target_orbit.
 
 
     //launch time (roughly) is next (Ascending |descending node).
@@ -253,13 +254,13 @@ GLOBAL function doLaunchToSpecifiedOrbit{
 }
 
 GLOBAL function doOrbitalInsertion{
-    setFlightStatus("Orbital Insertion").
+    SET _FLIGHT_STATUS TO "Orbital Insertion".
 
-    set orbitalInsertionManeuver to createOrbitalInsertionManeuver().
-    addManeuverToPlan(orbitalInsertionManeuver).
-    setFlightStatus("Awaiting O.I. Maneuver").
+    set OImaneuver to createOrbitalInsertionManeuver().
+    addManeuverToPlan(OImaneuver).
+    set _FLIGHT_STATUS to "Awaiting O.I. Maneuver".
 
-    executeManeuver(orbitalInsertionManeuver, TRUE).
+    executeManeuver(OImaneuver, TRUE).
 
     set orbitAchieved to true.
 }
@@ -280,7 +281,7 @@ GLOBAL function createOrbitalInsertionManeuver{
 GLOBAL function doDeorbit{
     parameter target_periapsis.
 
-    setFlightStatus("De-Orbit").
+    set _FLIGHT_STATUS to "De-Orbit".
     lock steering to retrograde.
     lock throttle to 1.
     wait until SHIP:PERIAPSIS <= target_periapsis.
@@ -290,7 +291,7 @@ GLOBAL function doDeorbit{
 
 GLOBAL function doReentry{
 
-setFlightStatus("Reentry").
+set _FLIGHT_STATUS to "Reentry".
 
 wait until ship:verticalspeed < 0.
 
@@ -312,7 +313,7 @@ for d in parachutes{
 wait until ship:altitude < 75000.
 
 LOCK STEERING to UP + R(45,0,0).
-if _FLIGHT_MANAGER notify("Decoupling.").
+notify("Decoupling.").
 wait 5.
 
 decouplerModule:DOEVENT("decouple").
@@ -335,7 +336,7 @@ GLOBAL function deploySafeChutes{
 }
 
 GLOBAL function doShutdownSequence{
-    setFlightStatus("Shutting Down").
+    set _FLIGHT_STATUS to "Shutting Down".
     lock throttle to 0.
     if(not ship:STATUS = "Landed"){
         lock steering to prograde.
@@ -343,7 +344,6 @@ GLOBAL function doShutdownSequence{
         set SASMODE to "PROGRADE".
         set autoPilotOn to false.
     }
-    updateDisplay().
 }
 
 function doAbortSequence {
@@ -426,16 +426,15 @@ function monitorFlight{//This method is purely for monitoring for flight warning
     local ABORT is false.
     local errorText is "".
     
-    local AoA_MAX is 15.
     local AoA is VANG(ship:FACING:FOREVECTOR, ship:VELOCITY:SURFACE).
-    if AoA > AoA_MAX and ship:airspeed > 25{
+    if AoA > _AoA_MAX and ship:airspeed > 25 and ship:altitude < 18000 {
         set ABORT to TRUE.
         set errorText to "AOA EXCEEDED!".
     }
 
     if ship:DELTAV = 0 and launchApoapsis > ship:apoapsis {
-        setOperationStatus("Error. See Log.").
-        if _FLIGHT_MANAGER notify("Target Apoapsis Not Achieved").
+        set _OPERATION_STATUS to "Error. See Log.".
+        notify("Target Apoapsis Not Achieved").
     }
 
     if(WARNING){
@@ -444,7 +443,7 @@ function monitorFlight{//This method is purely for monitoring for flight warning
     if(ABORT){
         set launchAbortFlag to true.
         doAbortSequence().
-        if _FLIGHT_MANAGER notify("ABORT: " + errorText).
+        notify("ABORT: " + errorText).
 
     }
 }

@@ -13,7 +13,7 @@
 // | table[n][0]     | table[n][1]      | table[n][2]      |
 // +-----------------+------------------+------------------+
 
-runOncePath("0:/STRING.ks").
+runOncePath("0:/CONSOLE.ks").
 runOncePath("0:/LAUNCH.ks").
 
 local headers is list().
@@ -255,19 +255,33 @@ function printCentered{
 local h1 is list("Mission: ", {return "Launch To Orbit Test".}).
 local h2 to list("Flight Status: ", getFlightStatus@).
 local h3 to list("Operating Status: ",  getOperationStatus@).
-local DEFAULT_HEADERS to list(h1, h2, h3).
 
-set colLabels to list("Param", "Current", "Target").
-set DEFAULT_TABLE to list(
-    colLabels,
+GLOBAL _DEFAULT_HEADERS to list(h1, h2, h3).
+
+GLOBAL _DEFAULT_TABLE_HEADERS is list("Param", "Current", "Target").
+
+GLOBAL _DEFAULT_TABLE to list(
+    default_table_headers,
     list("Apoapsis", getApoapsis@, blank_@),
     list("Periapsis", getPeriapsis@, blank_@),
     list("Velocity (SRF)", getVelocitySrf@, blank_@),
-    list("Velocity (ORB)", getVelocityOrb@, blank_@),
-    list("Pitch", getPitch@, blank_@),
-    list("AoA", getAoA@, blank_@),
+    list("Velocity (ORB)", getVelocityOrb@, blank_@)
+    ).
+
+//----------------------------------------------------------------------------------------------------------
+
+GLOBAL _DEFAULT_LAUNCH_TABLE to list(
+    _DEFAULT_TABLE_HEADERS,
+    list("Apoapsis", getApoapsis@, {RETURN _TARGET_APOAPSIS.}),
+    list("Periapsis", getPeriapsis@, {RETURN _LAUNCH_AZIMUTH.}),
+    list("Velocity (SRF)", getVelocitySrf@, blank_@),
+    list("Velocity (ORB)", getVelocityOrb@, visViva(kerbin:radius + _TARGET_APOAPSIS, kerbin:radius + _TARGET_APOAPSIS, kerbin)),
+    list("Pitch", getPitch@, launchTargetPitch(ALT:RADAR)),
+    list("AoA", getAoA@, _AoA_MAX),
     list("Q", getQ@, blank_@)
 ).
+
+
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////DISPLAY GETTER FUNCTIONS////////////////////////////////////////////////////////////////////////////////

@@ -94,7 +94,9 @@ GLOBAL function meanAnomaly{
     parameter _orbit.
 
     local deltaT is TIME:SECONDS - _orbit:EPOCH.
-    return meanMotion(_orbit) * deltaT + _orbit:MEANANOMALYATEPOCH.
+    local orbitsSinceEpoch is deltaT / _orbit:PERIOD.
+
+    return mod((orbitsSinceEpoch * 360 + _orbit:MEANANOMALYATEPOCH), 360).
 }
 
 GLOBAL function trueAnomalyAtTime{
@@ -124,101 +126,69 @@ GLOBAL function trueLongitude{
 
 //THIS FUNCTION WAS TRANSCRIBED FROM https://github.com/lbaars/orbit-nerd-scripts. IT IS UNTESTED. TODO
 GLOBAL function trueAnomalyToMeanAnomaly{
-    parameter TRUE_ANOMALY_DEGREES.
+    parameter TRUE_ANOMALY.
     parameter ECCENTRICITY.
 
-//    PRINT("--").
-//    print "TRUE_ANOM_DEG: " + TRUE_ANOMALY_DEGREES.
+    local ECCENTRIC_ANOMALY is TrueAnomalyToEccentricAnomaly(TRUE_ANOMALY, ECCENTRICITY).
 
-    local TRUE_ANOMALY_RADS is TRUE_ANOMALY_DEGREES * CONSTANT:degtorad.
+    local MEAN_ANOMALY is EccentricAnomalyToMeanAnomaly(ECCENTRIC_ANOMALY, ECCENTRICITY).
 
-    local ECCENTRIC_ANOMALY_RADS is TrueAnomalyToEccentricAnomaly(TRUE_ANOMALY_RADS, ECCENTRICITY).
-    print "ECC_ANOM_RAD: " + ECCENTRIC_ANOMALY_RADS.
-
-    local MEAN_ANOMALY_RADS is EccentricAnomalyToMeanAnomaly(ECCENTRIC_ANOMALY_RADS, ECCENTRICITY).
-    print "MEAN_ANOM_RAD: " + MEAN_ANOMALY_RADS.
-
-
-    return MEAN_ANOMALY_RADS * CONSTANT:radtodeg.
+    return MEAN_ANOMALY.
 
 }
 //THIS FUNCTION WAS TRANSCRIBED FROM https://github.com/lbaars/orbit-nerd-scripts. IT IS UNTESTED. TODO
-local function trueAnomalyToEccentricAnomaly{
-    parameter TRUE_ANOMALY_RADS.
-    parameter ECCENTRICITY.
-
-    //print "TRUE_ANOM_RADS: " + TRUE_ANOMALY_RADS.
-
-    local arg1 is sin(TRUE_ANOMALY_RADS * constant:radtodeg) * SQRT(1 - ECCENTRICITY^2).
-   // print "arg1: " + arg1.
-
-    local arg2 is ECCENTRICITY + cos(TRUE_ANOMALY_RADS*constant:radtodeg). 
-   // print "arg2: " + arg2.
-    
-    local ECCENTRIC_ANOMALY_DEG is arcTan2(arg1, arg2).
-    
-   // print "ECC_ANOM_DEG: " + ROUND(ECCENTRIC_ANOMALY_DEG).
-
-    return ECCENTRIC_ANOMALY_DEG * constant:degtorad. 
+GLOBAL function trueAnomalyToEccentricAnomaly{
+    parameter _T.//true anomaly in degrees
+    parameter _E.//eccentricity
+    local result is arctan2(sin(_T)*sqrt(1-_E^2), cos(_t) + _E).//from Rastro
+    // local result is arcTan2(sin(TRUE_ANOMALY)*SQRT(1-ECCENTRICITY^2), ECCENTRICITY + cos(TRUE_ANOMALY)).
+    return result.
 
 }
 //THIS FUNCTION WAS TRANSCRIBED FROM https://github.com/lbaars/orbit-nerd-scripts. IT IS UNTESTED. TODO
-local function eccentricAnomalyToMeanAnomaly{
-    parameter ECCENTRIC_ANOMALY_RADS.//in radians
+GLOBAL function eccentricAnomalyToMeanAnomaly{
+    parameter ECCENTRIC_ANOMALY.//in degrees
     parameter ECCENTRICITY.
-
-    // print "ECC Anom Rad: " + ROUND(ECCENTRIC_ANOMALY_RADS).
-
-    local MEAN_ANOMALY_RAD is ECCENTRIC_ANOMALY_RADS * sin(ECCENTRICITY).
-    set MEAN_ANOMALY_RAD to mod(MEAN_ANOMALY_RAD, 2*CONSTANT:pi).
-
-//    print "MEAN_ANOM_0: " + ROUND(MEAN_ANOMALY_RAD*constant:radtodeg).
-
-    if MEAN_ANOMALY_RAD < 0 {set MEAN_ANOMALY_RAD to MEAN_ANOMALY_RAD + 2*CONSTANT:pi.}
-
-//    print "MEAN_ANOM_1: " + ROUND(MEAN_ANOMALY_RAD*constant:radtodeg).
-
-    return MEAN_ANOMALY_RAD.
+    local MEAN_ANOMALY is ECCENTRIC_ANOMALY - (ECCENTRICITY * sin(ECCENTRIC_ANOMALY)).
+    if MEAN_ANOMALY < 0 set MEAN_ANOMALY to MEAN_ANOMALY + 360.
+    return MEAN_ANOMALY.
 }
 //THIS FUNCTION WAS TRANSCRIBED FROM https://github.com/lbaars/orbit-nerd-scripts. IT IS UNTESTED. TODO
 GLOBAL function meanAnomalyToTrueAnomaly{
-    parameter MEAN_ANOMALY_DEG.
+    parameter MEAN_ANOMALY.
     parameter ECCENTRICITY.
 
-    local MEAN_ANOMALY_RADS is MEAN_ANOMALY_DEG * CONSTANT:degtorad.
+    local ECCENTRIC_ANOMALY is meanAnomalyToEccentricAnomaly(MEAN_ANOMALY, ECCENTRICITY).
+    local TRUE_ANOMALY is eccentricAnomalyToTrueAnomaly(ECCENTRIC_ANOMALY, ECCENTRICITY).
 
-    local ECCENTRIC_ANOMALY_RADS is meanAnomalyToEccentricAnomaly(MEAN_ANOMALY_RADS, ECCENTRICITY).
-    local TRUE_ANOMALY_RADS is eccentricAnomalyToTrueAnomaly(ECCENTRIC_ANOMALY_RADS, ECCENTRICITY).
-
-    return TRUE_ANOMALY_RADS * CONSTANT:radtodeg.
+    return TRUE_ANOMALY.
 
 }
 //THIS FUNCTION WAS TRANSCRIBED FROM https://github.com/lbaars/orbit-nerd-scripts. IT IS UNTESTED. TODO
-local function meanAnomalyToEccentricAnomaly{
-    parameter MEAN_ANOMALY_RADS.
+GLOBAL function meanAnomalyToEccentricAnomaly{
+    parameter MEAN_ANOMALY.
     parameter ECCENTRICITY.
 
+    set MEAN_ANOMALY_RADS TO MEAN_ANOMALY * CONSTANT:DEGTORAD.
     local Enew is MEAN_ANOMALY_RADS + ECCENTRICITY.
     if MEAN_ANOMALY_RADS > CONSTANT:pi{
         set Enew to MEAN_ANOMALY_RADS - ECCENTRICITY.
         }
-    set Eold to Enew +0.001.
+    set Eold to Enew + 0.001.
     until abs(Enew - Eold) <= 1*10^8{
         set Eold to Enew.
-        set Enew to Eold + (MEAN_ANOMALY_RADS - Eold + ECCENTRICITY*sin(Eold*constant:radtodeg))/(1 - ECCENTRICITY*cos(Eold*constant:radtodeg)).
+        set Enew to Eold + (MEAN_ANOMALY_RADS - Eold + ECCENTRICITY * sin(Eold*constant:radtodeg))/(1 - ECCENTRICITY*cos(Eold*constant:radtodeg)).
     }
-    return Enew.
+    return Enew * CONSTANT:radtodeg.
 }
 //THIS FUNCTION WAS TRANSCRIBED FROM https://github.com/lbaars/orbit-nerd-scripts. IT IS UNTESTED. TODO
-local function eccentricAnomalyToTrueAnomaly{
-    parameter ECCENTRIC_ANOMALY_RADS.
+GLOBAL function eccentricAnomalyToTrueAnomaly{
+    parameter ECCENTRIC_ANOMALY.
     parameter ECCENTRICITY.
 
-    local TRUE_ANOMALY is arcTan2(sin(ECCENTRIC_ANOMALY_RADS*Constant:radtodeg)*sqrt(1-ECCENTRICITY^2), 
-                                            cos(ECCENTRIC_ANOMALY_RADS * Constant:radtodeg)-ECCENTRICITY).
-    if TRUE_ANOMALY < 0{
-        set TRUE_ANOMALY to TRUE_ANOMALY + 2*CONSTANT:pi.
-    }
+    local TRUE_ANOMALY is arcTan2(sin(ECCENTRIC_ANOMALY)*sqrt(1-ECCENTRICITY^2), 
+                                            cos(ECCENTRIC_ANOMALY)-ECCENTRICITY).
+    SET TRUE_ANOMALY TO mod(TRUE_ANOMALY + 360, 360).
     
     return TRUE_ANOMALY.
 }
@@ -227,16 +197,9 @@ GLOBAL function timeUntilTrueAnomaly{//this will take a true anomaly and return 
     parameter satellite.
     parameter TRUE_ANOMALY_DEG.
 
-
-    print "TRUE_ANOM DEG: " + TRUE_ANOMALY_DEG.
-
     local MEAN_ANOMALY_DEG is trueAnomalyToMeanAnomaly(TRUE_ANOMALY_DEG, satellite:orbit:eccentricity).
     local CURRENT_MEAN_ANOMALY is trueAnomalyToMeanAnomaly(satellite:orbit:trueanomaly, satellite:orbit:eccentricity).
     local MEAN_MOTION is meanMotion(satellite).
-
-    // print "mean anom deg: " + MEAN_ANOMALY_DEG.
-    // print "curr anom deg: " + CURRENT_MEAN_ANOMALY.
-    // print "mean motion: " + MEAN_MOTION.
 
     local result is ((MEAN_ANOMALY_DEG - CURRENT_MEAN_ANOMALY) / MEAN_MOTION).
 
