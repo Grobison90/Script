@@ -1,30 +1,25 @@
 runOncePath("0:/SHIP.ks").
 
-GLOBAL function addManeuverToPlan{
-    parameter mnvr.
-    ADD mnvr.
-}
-
-GLOBAL function removeManeuverFromPlan{
-    parameter mnvr.
-    REMOVE mnvr.
-}
-
 GLOBAL function executeManeuver{
     parameter mnvr, isPrecise.
-
+    
     local startTime to calculateBurnStartTime(mnvr, isPrecise).
     lock steering to mnvr:burnvector.
     wait until TIME:SECONDS > startTime - 10.
-
+    set _FLIGHT_STATUS to "Executing Burn".
+    
     local dV0 is mnvr:DELTAV.
     if isPrecise {burnPrecisely().}
     else {burnRoughly().}
     lock steering to ship:PROGRADE.
-    removeManeuverFromPlan(mnvr).
+    REMOVE mnvr.
 
     local function burnPrecisely{//Implement this method. TODO
-        burnRoughly().
+        WAIT until TIME:SECONDS >= startTime.
+        lock throttle to 1.
+        wait until VDOT(dV0, mnvr:DELTAV) < (dV0:DELTAV *0.05).
+        lock throttle to 0.1.
+        wait until VDOT(dV0, mnvr:DELTAV) < 0.1.
     }
 
     local function burnRoughly{

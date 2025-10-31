@@ -1,3 +1,11 @@
+GLOBAL function notify{
+    parameter message.
+    if _DISPLAY{
+        logEntry(message).
+    }
+    else hudtext(message, 3, 2, 32, yellow, true).
+}
+
 GLOBAL function repeatString{
     parameter s.
     parameter n.

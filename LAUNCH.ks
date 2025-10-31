@@ -1,6 +1,8 @@
+RunOncePath("0:/CONSOLE.ks").
+RunOncePath("0:/SHIP.ks").
 
-GLOBAL _LAUNCH_AZIMUTH is "-".
-GLOBAL _TARGET_APOAPSIS is "-".
+GLOBAL _LAUNCH_AZIMUTH is 90.
+GLOBAL _TARGET_APOAPSIS is 100000.
 GLOBAL _AoA_MAX is 15.
 
 local padAbortFlag is false.
@@ -8,6 +10,7 @@ local launchAbortFlag is false.
 local curveConstant is 0.35. //this constant varies between 0 & 1 with values closer to 1 biasing towards a steeper initial ascent, and 0 being a linear
 //Tracked data during launch.
 local launchEscapeTowers is ship:PARTSNAMEDPATTERN(".*engine-les.*").
+local reentryDecoupler is findReentryDecoupler().
 local maxDynPressure is 0.
 local maxQAchieved is false.
 local autoPilotOn is true.
@@ -16,8 +19,9 @@ local apoapsisAchieved is false.
 local orbitAchieved is false.
 
 
+
 GLOBAL function doPreflightChecks{
-    setflightStatus("Preflight Checks").
+    SET _FLIGHT_STATUS TO "Preflight Checks".
     
     //Engines
     local ascentStage to ship:stagenum().
@@ -27,9 +31,12 @@ GLOBAL function doPreflightChecks{
     }
     set twr to getStageTWR(ascentStage).
     if(twr <= 1.0) {
-        errorMessages:push("Error: Launch TWR < 1: (Stage: " + ascentStage + " - " + twr + ")").
+        _ERROR_QUEUE:push("Error: Launch TWR < 1: (Stage: " + ascentStage + " - " + twr + ")").
     }.
 
+    if(reentryDecoupler = "None"){
+        _ERROR_QUEUE:Push("Error: No Reentry Decoupler").
+    }
     // are all the engines set to activate with their respective decouplers?
     //
     //-----Electrical
@@ -61,15 +68,15 @@ GLOBAL function doPreflightChecks{
 }
 
 GLOBAL function resolveErrors{
-    setflightStatus("Resolving Errors").
-        until errorMessages:EMPTY {
-        print errorMessages:peek().
+    set _FLIGHT_STATUS to "Resolving Errors".
+    until _ERROR_QUEUE:EMPTY {
+        print _ERROR_QUEUE:peek().
         print("Override? y/n").
         local response is terminal:INPUT:getchar().
         if response = "y" {
             //Override the error
-            errorMessages:pop().
-        }
+            _ERROR_QUEUE:pop().
+    }
 
         else if response = "n" {
             set padAbortFlag to true.
@@ -88,7 +95,7 @@ GLOBAL function doCountDown{
     set duration to 0.25.
 
     until tMinus = 0{
-    setFlightStatus ("Launching in: " + tMinus).
+    SET _FLIGHT_STATUS TO ("Launching in: " + tMinus).
     voice:PLAY(NOTE(freq,duration)).
     set tMinus to tMinus - 1.
     wait duration.
@@ -96,14 +103,13 @@ GLOBAL function doCountDown{
 
     }
     voice:PLAY(NOTE(freq*2, 0.75)).
-    lock throttle to 1.
 }
 
 GLOBAL function doBoostUp {
     parameter speedThresh is 50.
     parameter altThresh is 200.
 
-    setFlightStatus("Boost-Up"). 
+    SET _FLIGHT_STATUS TO("Boost-Up"). 
     lock throttle to 1.
     lock steering to UP * R(0,0,180).//TODO is this right?
     on (ship:airspeed > 0.5) {
@@ -139,18 +145,18 @@ GLOBAL function doPitchProgram {
     lock steering to heading(_LAUNCH_AZIMUTH, targetPitch).
     
     wait until ship:apoapsis >= _TARGET_APOAPSIS.
-
-    
-    set stagingLock to true.
+       
     lock steering to ship:velocity:surface.
     lock throttle to 0.
     wait until ship:THRUST = 0.
+    notify("Apoapsis Achieved").
+    set _FLIGHT_STATUS to "Coasting to Space".
     wait until ship:altitude > 70000.
 
 }
 GLOBAL function launchTargetPitch{
-    parameter alt.
-    return 90 * ( 1 - ( alt / 75000) ^ curveConstant ).    //This is the pitch function.
+    parameter a.
+    return 90 * ( 1 - ( a / 75000) ^ curveConstant ).    //This is the pitch function.
 }
 
 GLOBAL function doStaging{
@@ -177,7 +183,7 @@ GLOBAL function doSuborbitalLaunch{
         PRESERVE.
     }.
 
-    SET _ERROR_QUEUE TO doPreflightChecks().
+    doPreflightChecks().
 
     resolveErrors().
   
@@ -195,7 +201,6 @@ GLOBAL function doSuborbitalLaunch{
         doPitchProgram().
         doReentry().
 
-        //Check subroutine for errors, and report to FLIGHT_MANAGER. TODO
     }.
 
 }
@@ -209,7 +214,7 @@ GLOBAL function doToOrbitLaunch {
     GLOBAL _TARGET_APOAPSIS to targetApoapsis.
     set curveConstant to curveK.
 
-    SET _ERROR_QUEUE TO doPreflightChecks().
+    doPreflightChecks().
     resolveErrors().
 
     when AutoPilotOn then{
@@ -231,9 +236,7 @@ GLOBAL function doToOrbitLaunch {
         doRollProgram().
         doPitchProgram().
         doOrbitalInsertion().
-        doShutdownSequence().
     }
-    //Check subroutine for errors, and report to FLIGHT_MANAGER. TODO
 }
 
 GLOBAL function doLaunchToSpecifiedOrbit{
@@ -250,14 +253,13 @@ GLOBAL function doLaunchToSpecifiedOrbit{
 
 
 
-    //Check subroutine for errors, and report to FLIGHT_MANAGER.TODO
 }
 
 GLOBAL function doOrbitalInsertion{
     SET _FLIGHT_STATUS TO "Orbital Insertion".
 
     set OImaneuver to createOrbitalInsertionManeuver().
-    addManeuverToPlan(OImaneuver).
+    add OImaneuver.
     set _FLIGHT_STATUS to "Awaiting O.I. Maneuver".
 
     executeManeuver(OImaneuver, TRUE).
@@ -280,9 +282,15 @@ GLOBAL function createOrbitalInsertionManeuver{
 
 GLOBAL function doDeorbit{
     parameter target_periapsis.
+    parameter atTime.
 
-    set _FLIGHT_STATUS to "De-Orbit".
+    until (TIME:SECONDS >= atTime){
+        set _FLIGHT_STATUS to "De-Orbit Burn in: " + round(atTime - TIME:SECONDS).
+    }.
+
+    
     lock steering to retrograde.
+    wait until (VANG(ship:facing:forevector, SHIP:retrograde:forevector) < 5).
     lock throttle to 1.
     wait until SHIP:PERIAPSIS <= target_periapsis.
     lock throttle to 0.
@@ -292,46 +300,43 @@ GLOBAL function doDeorbit{
 GLOBAL function doReentry{
 
 set _FLIGHT_STATUS to "Reentry".
-
-wait until ship:verticalspeed < 0.
-
-set proximalDecoupler to findNearestPart("Decoupler").
-set decouplerModule to proximalDecoupler:(0).
-// print proximalDecoupler at(10, 50).
-
-set parachutes to getPartsNamed("chute").
-set drogues to getPartsNamed("drogue").
-for d in drogues{
-    parachutes:ADD(d).
-}
-
-set parachuteModules to list().
-for d in parachutes{
-    parachuteModules:ADD(d:GETMODULE("moduleParachute")).
-}
-
+LOCK STEERING to RETROGRADE.
 wait until ship:altitude < 75000.
 
-LOCK STEERING to UP + R(45,0,0).
-notify("Decoupling.").
-wait 5.
+notify("Decoupling."). 
+local decoupled is false.
+for p in ship:rootpart:children{
+    if p:HASMODULE("ModuleDecouple"){
+        p:GETMODULE("ModuleDecouple"):doevent("Decouple").
+        set decoupled to true.
+    }
+}
+ if not decoupled{
+        for p in ship:rootpart:children {
+            for q in p:children{
+                if p:HASMODULE("ModuleDecouple"){
+                    q:GETMODULE("ModuleDecouple"):DOECENT("Decouple").
+                }
+            }
+        }
+    }
 
-decouplerModule:DOEVENT("decouple").
-wait 3.
+wait 5.
 
 LOCK STEERING TO (-1) * SHIP:VELOCITY:SURFACE.
 
 wait until ship:altitude < 20000.
 deploySafeChutes().
+unlock steering.
 wait until ship:STATUS = "Landed" or ship:STATUS = "Splashed".
 
-//Check subroutine for errors, and report to FLIGHT_MANAGER. TODO
 }
 
 GLOBAL function deploySafeChutes{
-    until CHUTES {
-        CHUTESAFE ON.
-        return true.
+    notify("Deploying Chutes").
+    when (NOT CHUTESSAFE) THEN{
+        CHUTESSAFE ON.
+        return (NOT CHUTES).
     }
 }
 
@@ -349,8 +354,8 @@ GLOBAL function doShutdownSequence{
 function doAbortSequence {
     // local capsule to SHIP:
     ABORT ON.
-    setFlightStatus("ABORTING!").
-    setOperationStatus("OFF NOMINAL, ERROR.").
+    SET _FLIGHT_STATUS TO("ABORTING!").
+    SET _OPERATION_STATUS TO ("OFF NOMINAL, ERROR.").
     updateDisplay().
     if(launchEscapeTowers:length > 0){
         local LES is launchEscapeTowers[0].
@@ -392,7 +397,7 @@ GLOBAL function doSafeStage{
     local coldStageSepTime is 2.
     
     wait until stage:ready.
-    if _FLIGHT_MANAGER notify("Stage " + ship:stagenum + " complete").
+    notify("Stage " + ship:stagenum + " complete").
 
     if isHotStage {
         stage.
@@ -413,7 +418,7 @@ GLOBAL function updateTelemetry{//This method is going to continue to update fli
         set maxDynPressure to ship:dynamicPressure.
         }
         if(maxDynPressure >= 0.005 and ship:dynamicPressure < maxDynPressure and not maxQAchieved){
-            if _FLIGHT_MANAGER notify("Max Q").
+            notify("Max Q").
             set maxQAchieved to true.
 
         }

@@ -1,4 +1,4 @@
-runOncePath("0:/ORBITS.ks").
-
-set mM to meanMotion(ship).
-print(360/mM).
+doToOrbitLaunch(90,80000,0.35).
+wait 60.//wait in orbit just a minute.
+doDeorbit(35000).
+doReentry().

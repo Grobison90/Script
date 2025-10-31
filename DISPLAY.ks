@@ -1,3 +1,8 @@
+runOncePath("0:/CONSOLE.ks").
+runOncePath("0:/LAUNCH.ks").
+RunOncePath("0:/ORBITS.ks").
+
+{
 //this file is to create a relatively generic display and methods for interacting with it. 
 //
 // +-------------------------------------------------------+
@@ -12,9 +17,83 @@
 // | table[...][...] | table[...][...]  | table[...][...]  |
 // | table[n][0]     | table[n][1]      | table[n][2]      |
 // +-----------------+------------------+------------------+
+}
+{
+// CONFIGURE DEFAULT DISPLAY SETTINGS///////////////////////////////////////////////////////////////////
+local h1 is list("Mission: ", {return "".}).
+local h2 to list("Flight Status: ", getFlightStatus@).
+local h3 to list("Operating Status: ",  getOperationStatus@).
 
-runOncePath("0:/CONSOLE.ks").
-runOncePath("0:/LAUNCH.ks").
+GLOBAL _DEFAULT_HEADERS to list(h1, h2, h3).
+
+GLOBAL _DEFAULT_TABLE_HEADERS is list("Param", "Current", "Target").
+
+GLOBAL _DEFAULT_TABLE to list(
+    _DEFAULT_TABLE_HEADERS,
+    list("Apoapsis", getApoapsis@, blank_@),
+    list("Periapsis", getPeriapsis@, blank_@),
+    list("Velocity (SRF)", getVelocitySrf@, blank_@),
+    list("Velocity (ORB)", getVelocityOrb@, blank_@)
+    ).
+
+//----------------------------------------------------------------------------------------------------------
+
+GLOBAL _DEFAULT_LAUNCH_TABLE to list(
+    _DEFAULT_TABLE_HEADERS,
+    list("Apoapsis", getApoapsis@, {RETURN _TARGET_APOAPSIS.}),
+    list("Periapsis", getPeriapsis@, {RETURN _LAUNCH_AZIMUTH.}),
+    list("Velocity (SRF)", getVelocitySrf@, blank_@),
+    list("Velocity (ORB)", getVelocityOrb@, {return round(visViva(kerbin:radius + _TARGET_APOAPSIS, kerbin:radius + _TARGET_APOAPSIS, kerbin)).}),
+    list("Pitch", getPitch@, {return round(launchTargetPitch(ALT:RADAR)).}),
+    list("AoA", getAoA@, {return "<" + _AoA_MAX.}),
+    list("Q", getQ@, blank_@)
+).
+
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////DISPLAY GENERIC FUNCTIONS///////////////////////////////////////////////////////////////////////////////
+local function blank_{
+    return " - ".
+}
+
+local function getFlightStatus{
+    return _FLIGHT_STATUS.
+}
+
+local function getOperationStatus{
+    return _OPERATION_STATUS.
+}
+
+local function getApoapsis{
+    return round(ship:orbit:apoapsis).
+}
+
+local function getPeriapsis{
+    return round(ship:orbit:periapsis).
+}
+
+local function getVelocitySrf{
+    return round(ship:VELOCITY:SURFACE:MAG).
+}
+
+local function getVelocityOrb{
+    return round(ship:VELOCITY:ORBIT:MAG).
+}
+
+local function getPitch{
+    return round(VANG(ship:FACING:FOREVECTOR, UP:VECTOR)).
+}
+
+local function getAoA{
+    return round(VANG(ship:FACING:FOREVECTOR, SHIP:VELOCITY:SURFACE), 2).
+}
+
+local function getQ{
+    return round(ship:dynamicPressure, 2).
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+}
 
 local headers is list().
 local table is list(list()).
@@ -38,8 +117,8 @@ GLOBAL function configureDisplay{
 //Configure Display is the first method of the display library to call. It takes as input 2 mandatory parameters. The first is a list() of headers,
 // the second is a list(list()) which comprises a table. The table is in table[row][column] format. The table is customizable, but usually the
 // first row and column would be labels.
-    parameter hdrs is DEFAULT_HEADERS.
-    parameter tbl is DEFAULT_TABLE.
+    parameter hdrs is _DEFAULT_HEADERS.
+    parameter tbl is _DEFAULT_TABLE.
 
     set headers to hdrs.
     set table to tbl.
@@ -240,7 +319,7 @@ function getCenter{
 }
 
 function getRight{
-    return TERMINAL:WIDTH - sMargin - 1.
+    return sMargin + nColumns + nColumns*colWidth + sMargin -1.//fix this
 }
 
 function printCentered{
@@ -251,69 +330,3 @@ function printCentered{
 }
 
 
-// CONFIGURE DEFAULT DISPLAY SETTINGS///////////////////////////////////////////////////////////////////
-local h1 is list("Mission: ", {return "Launch To Orbit Test".}).
-local h2 to list("Flight Status: ", getFlightStatus@).
-local h3 to list("Operating Status: ",  getOperationStatus@).
-
-GLOBAL _DEFAULT_HEADERS to list(h1, h2, h3).
-
-GLOBAL _DEFAULT_TABLE_HEADERS is list("Param", "Current", "Target").
-
-GLOBAL _DEFAULT_TABLE to list(
-    default_table_headers,
-    list("Apoapsis", getApoapsis@, blank_@),
-    list("Periapsis", getPeriapsis@, blank_@),
-    list("Velocity (SRF)", getVelocitySrf@, blank_@),
-    list("Velocity (ORB)", getVelocityOrb@, blank_@)
-    ).
-
-//----------------------------------------------------------------------------------------------------------
-
-GLOBAL _DEFAULT_LAUNCH_TABLE to list(
-    _DEFAULT_TABLE_HEADERS,
-    list("Apoapsis", getApoapsis@, {RETURN _TARGET_APOAPSIS.}),
-    list("Periapsis", getPeriapsis@, {RETURN _LAUNCH_AZIMUTH.}),
-    list("Velocity (SRF)", getVelocitySrf@, blank_@),
-    list("Velocity (ORB)", getVelocityOrb@, visViva(kerbin:radius + _TARGET_APOAPSIS, kerbin:radius + _TARGET_APOAPSIS, kerbin)),
-    list("Pitch", getPitch@, launchTargetPitch(ALT:RADAR)),
-    list("AoA", getAoA@, _AoA_MAX),
-    list("Q", getQ@, blank_@)
-).
-
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////
-////DISPLAY GETTER FUNCTIONS////////////////////////////////////////////////////////////////////////////////
-local function blank_{
-    return " - ".
-}
-
-local function getApoapsis{
-    return round(ship:orbit:apoapsis).
-}
-
-local function getPeriapsis{
-    return round(ship:orbit:periapsis).
-}
-
-local function getVelocitySrf{
-    return round(ship:VELOCITY:SURFACE:MAG).
-}
-
-local function getVelocityOrb{
-    return round(ship:VELOCITY:ORBIT:MAG).
-}
-
-local function getPitch{
-    return round(VANG(ship:FACING:FOREVECTOR, UP:VECTOR)).
-}
-
-local function getAoA{
-    return round(VANG(ship:FACING:FOREVECTOR, SHIP:VELOCITY:SURFACE), 2).
-}
-
-local function getQ{
-    return round(ship:dynamicPressure, 2).
-}
-////////////////////////////////////////////////////////////////////////////////////////////////////////////

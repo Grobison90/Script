@@ -108,6 +108,30 @@ GLOBAL function distanceToRoot{
     return dist.
 }
 
+GLOBAL function findReentryDecoupler{
+    list PARTS in candidates.
+    local decouplers is list().
+    for p in candidates{
+        if (p:HASMODULE("ModuleDecouple")){
+            decouplers:ADD(p).
+            print(p).
+        }
+    if decouplers:LENGTH < 1 return "None".
+
+    local prox is decouplers[0].
+    local lowest_dist is distanceToRoot(d[0]).
+    for d in decouplers{
+        local dist is distanceToRoot(d).
+        if dist < lowest_dist{
+            set prox to d.
+            set lowest_dist to dist.
+        }
+
+    }
+    }
+    return prox.
+}
+
 GLOBAL function getAcceleration{
     parameter deltaT.
 
