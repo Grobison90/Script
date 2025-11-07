@@ -9,8 +9,8 @@ local padAbortFlag is false.
 local launchAbortFlag is false.
 local curveConstant is 0.35. //this constant varies between 0 & 1 with values closer to 1 biasing towards a steeper initial ascent, and 0 being a linear
 //Tracked data during launch.
-local launchEscapeTowers is ship:PARTSNAMEDPATTERN(".*engine-les.*").
-local reentryDecoupler is findReentryDecoupler().
+local launchEscapeTower is ship:PARTSTAGGED("LES").
+local reentryDecoupler is SHIP:PARTSTAGGED("REENTRY_DECOUPLER").
 local maxDynPressure is 0.
 local maxQAchieved is false.
 local autoPilotOn is true.
@@ -24,17 +24,12 @@ GLOBAL function doPreflightChecks{
     SET _FLIGHT_STATUS TO "Preflight Checks".
     
     //Engines
-    local ascentStage to ship:stagenum().
-    local clamps to ship:partsnamedPattern(".*launchclamp.*").
-    if (clamps:length() >=1) {
-        set ascentStage to ship:stagenum() - 1.
-    }
-    set twr to getStageTWR(ascentStage).
+    set twr to getStageTWR(ship:stagenum-1).
     if(twr <= 1.0) {
         _ERROR_QUEUE:push("Error: Launch TWR < 1: (Stage: " + ascentStage + " - " + twr + ")").
     }.
 
-    if(reentryDecoupler = "None"){
+    if(reentryDecoupler:LENGTH = 0){
         _ERROR_QUEUE:Push("Error: No Reentry Decoupler").
     }
     // are all the engines set to activate with their respective decouplers?
@@ -46,6 +41,10 @@ GLOBAL function doPreflightChecks{
     //
     //-----Safety
     // is there a parachute?
+    local chutes is ship:partsdubbedpattern(".*chute.*").
+    if(chutes:length = 0){
+        _ERROR_QUEUE:push("Error: No Chutes Onboard").
+    }
     // is there thermal protection?
     //
     //-----Coms
@@ -112,6 +111,7 @@ GLOBAL function doBoostUp {
     SET _FLIGHT_STATUS TO("Boost-Up"). 
     lock throttle to 1.
     lock steering to UP * R(0,0,180).//TODO is this right?
+
     on (ship:airspeed > 0.5) {
         notify("Liftoff").
     }
@@ -131,15 +131,13 @@ GLOBAL function doRollProgram {
 GLOBAL function doPitchProgram {
     SET _FLIGHT_STATUS TO "Pitch Program".
 
-    if(launchEscapeTowers:length > 0){
-        local LES is launchEscapeTowers[0].
+    if (not LaunchEscapeTower:length = 0){    
         WHEN (ship:altitude > 30000 and getAcceleration(0.01) < 2*9.8) THEN {
-            LES:activate.
-            LES:getmodule("ModuleDecouple"):DOACTION("Decouple",true).
-            launchEscapeTowers:remove(0).
+            LaunchEscapeTower:activate.
+            LaunchEscapeTower:getmodule("ModuleDecouple"):DOACTION("Decouple",true).
             notify("LES Discarded").
+            }
         }
-    }
 
     lock targetPitch to launchTargetPitch(ALT:RADAR).
     lock steering to heading(_LAUNCH_AZIMUTH, targetPitch).
@@ -150,6 +148,7 @@ GLOBAL function doPitchProgram {
     lock throttle to 0.
     wait until ship:THRUST = 0.
     notify("Apoapsis Achieved").
+    set apoapsisAchieved to true.
     set _FLIGHT_STATUS to "Coasting to Space".
     wait until ship:altitude > 70000.
 
@@ -161,7 +160,7 @@ GLOBAL function launchTargetPitch{
 
 GLOBAL function doStaging{
     if not stagingLock{
-        if (stage:DELTAV:current < 1.0) {
+        if (stage:DELTAV:current < 0.05) {
         doSafeStage(). 
         }
     }
@@ -170,7 +169,7 @@ GLOBAL function doStaging{
 GLOBAL function doSuborbitalLaunch{
     parameter targetAzimuth is 90.
     parameter targetApoapsis is 80000.
-    parameter curveK is 1.
+    parameter curveK is 0.75.
 
     GLOBAL _LAUNCH_AZIMUTH to targetAzimuth.
     GLOBAL _TARGET_APOAPSIS to targetApoapsis.
@@ -179,21 +178,19 @@ GLOBAL function doSuborbitalLaunch{
     when AutoPilotOn then{
         monitorFlight().
         updateTelemetry().
-        updateDisplay().
         PRESERVE.
     }.
 
     doPreflightChecks().
-
     resolveErrors().
   
           
     if (not padAbortFlag) {
         doCountDown().
 
-        when (ship:deltav>=1) then {
+        when (not apoapsisAchieved) then {
             doStaging().
-            PRESERVE.
+            return not apoapsisAchieved.
         }
 
         doBoostUp().
@@ -220,7 +217,6 @@ GLOBAL function doToOrbitLaunch {
     when AutoPilotOn then{
         monitorFlight().
         updateTelemetry().
-        updateDisplay().
         PRESERVE.
     }
 
@@ -352,17 +348,17 @@ GLOBAL function doShutdownSequence{
 }
 
 function doAbortSequence {
-    // local capsule to SHIP:
-    ABORT ON.
     SET _FLIGHT_STATUS TO("ABORTING!").
     SET _OPERATION_STATUS TO ("OFF NOMINAL, ERROR.").
-    updateDisplay().
-    if(launchEscapeTowers:length > 0){
-        local LES is launchEscapeTowers[0].
-        if (not LES:IGNITION) LES:ACTIVATE.
-        wait until LES:FLAMEOUT.
-        LES:GETMODULE("ModuleDecouple"):DOACTION("Decouple", true).
+    if(not launchEscapeTower:length = 0){
+        launchEscapeTower:activate.
+        launchEscapeTower:getmodule("ModuleDecouple"):DOACTION("Decouple",true).
+        notify("LES Activated").
     }
+    if(not reentryDecoupler:length = 0){
+        reentryDecoupler:getmodule("ModuleDecouple"):DOACTION("Decouple",true).
+    }
+
     lock STEERING to ship:srfretrograde.
     wait until ship:verticalspeed < 0.
     deploySafeChutes().
@@ -374,7 +370,7 @@ function doAbortSequence {
     // set high to 666.
     // set low to 333.
     // set dur to 0.5.
-    // set reps to 3.
+    // set reps to 2.
     // set alarmDuration to 10.
 
     // until alarmDuration <= 0 {
@@ -386,7 +382,7 @@ function doAbortSequence {
     //     }
     //     wait 2*dur.
     //     set alarmDuration to alarmDuration - dur.
-        // }
+    //     }
     // }
 }
 
@@ -432,7 +428,7 @@ function monitorFlight{//This method is purely for monitoring for flight warning
     local errorText is "".
     
     local AoA is VANG(ship:FACING:FOREVECTOR, ship:VELOCITY:SURFACE).
-    if AoA > _AoA_MAX and ship:airspeed > 25 and ship:altitude < 18000 {
+    if AoA > _AoA_MAX and ship:airspeed > 25 and ship:altitude < 18000{
         set ABORT to TRUE.
         set errorText to "AOA EXCEEDED!".
     }

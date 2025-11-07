@@ -18,15 +18,27 @@ GLOBAL function repeatString{
 
 GLOBAL FUNCTION printTable{
     parameter table.
+    parameter colWidth is 25.
 
     set row_n to 0.
     set col_n to 0.
     for row in table{
         for col in row{
-            print(table[row][col])at(col_n*_colWidth, row_n).
+            print(col)at(col_n*colWidth, row_n).
             set col_n to col_n + 1.
         }
-        set col_n to col_n + 1.
+        set col_n to 0.
+        set row_n to row_n + 1.
     }
 
+}
+
+GLOBAL function joinLists{
+    parameter listA.
+    parameter listB.
+
+    for item in listB{
+        listA:ADD(item).
+    }
+    return listA.
 }

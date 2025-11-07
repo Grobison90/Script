@@ -27,4 +27,4 @@ when true then {
     PRESERVE.
 }
 //run my particular launch plan:
-RunPath("0:/_test_code.ks").
+RunPath("0:/_alpha3_plan").

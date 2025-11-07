@@ -125,11 +125,11 @@ GLOBAL function configureDisplay{
     set nColumns to table[0]:LENGTH.
     set nRows to table:LENGTH.
 
-    set headerRow to vMargin.
+    set  headerRow to vMargin.
     set tableRow to headerRow + 2 + headers:LENGTH * 2. // +2 is for a row divider and a blank line at top of headers.
     set logRow to tableRow + table:LENGTH + 1.
 
-    set debug to true.
+    local debug is false.
     
     if debug {// if debugging, run with a bigger kOS terminal, so that I can actually read ALL of the error messages.
         SET TERMINAL:WIDTH TO (100).
@@ -232,6 +232,12 @@ local function printCell{
     local x is col * (colWidth + 1) + sMargin + 1.
     local y is row + tableRow + 1.
     print text:padright(colWidth) at(x,y).
+}
+
+GLOBAL function setHeader{
+    parameter idx.
+    parameter value.
+    set headers[idx][1] to {return value.}.
 }
 
 GLOBAL function setColumns{

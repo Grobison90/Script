@@ -31,45 +31,37 @@ GLOBAL function executeManeuver{
     
 }  
 
-GLOBAL function calculateBurnStartTime {
-    parameter mnvr.
-    parameter integrated. // if true we'll use the integration approach to calculate the burn start time.
+GLOBAL function calculateBurnTime {
+    parameter deltaV.
 
-    if integrated{
-        return calculateBurnStartTimeIntegration(mnvr).
-    }.
+    local function calculate{
+        parameter dV, m0, mFlow, isp.
 
-    else {
-        return calculateBurnStartTimeSimply(mnvr).
-    }.
+        declare mt is CONSTANT:e ^(dV / (isp * CONSTANT:g0)) / m0.
+        return (mt - m0)/mFlow.
 
-}
-
-GLOBAL function calculateBurnStartTimeSimply{
-    parameter mnvr.
-    //will be accurate enough for short burns.
-    local burnTime is (mnvr:DELTAV:mag / (ship:maxThrust / ship:mass)).
-    return mnvr:TIME - (burnTime / 2).
-}
-
-GLOBAL function calculateBurnStartTimeIntegration{
-    parameter mnvr.
-    //will be more accurate for very long burns.
-
-    //assignments in the right units for simplicity in maths below:
-    local dV is mnvr:DELTAV:MAG.
-    local Tau is SHIP:MAXTHRUST * 10^3 .//SHIP:MAXTHRUST is given in kN, converting to Newtons.
-    local massFlow is (sumEnginesMaxMassFlow(getActiveEngines()) * 10^3). // for some reason Max Mass Flow is given in Mega-grams.
-    local shipMass is SHIP:MASS * 10^3. //SHIP:MASS is in metric tons, converting to kg.
-    local C is calculateConstant().
-
-    local exponent is ((massFlow/Tau) * (C-dV/2)). // just breaking this down so it's easier to math. Used in next line.
-    local halfBurn is (-1 * (CONSTANT:E^(exponent) - shipMass) / massFlow ).
-
-    function calculateConstant{
-        return (Tau * ln(shipMass)) / massFlow.
     }
 
-    return mnvr:TIME - halfBurn.
+    if(deltaV < stage:DeltaV:Vacuum){
+        declare enginesThisStage is getEnginesByStage(ship:stagenum).
+        declare specImpulse is getAverageISP(enginesThisStage).
+        declare massFlow is sumEnginesMaxMassFlow(enginesThisStage).
+        return calculate(deltaV, ship:mass, massFlow, specImpulse).
+
+    } else {
+        declare time1 is getStageBurnTime(ship:stagenum).
+        declare massNextStage is getStageMass(ship:stagenum-1).
+        declare enginesNextStage is getEnginesByStage(ship:stagenum - 1).
+        declare specImpulseNextStage is getAverateISP(enginesNextStage).
+        declare massflowNextStage is sumEnginesMaxMassFlow(enginesNextStage).
+        return time1 + calculate(deltaV - stage:DELTAV:VACUUM, massNextStage, massflowNextStage, specImpulseNextStage).
+    }
 }
+
+GLOBAL function calculateBurnStartTime{
+    parameter mnvr.
+
+    return mnvr:time - calculateBurnTime(mnvr:deltaV:mag) / 2.
+}
+
 
