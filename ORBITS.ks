@@ -1,4 +1,4 @@
-    
+
 GLOBAL function vectorToAngleDegrees{
     parameter vec. //TODO
 }
@@ -19,66 +19,6 @@ GLOBAL function visViva{
     parameter parentBody.
 
     return sqrt(parentBody:MU * ((2 / radius) - (1 / SMA))).
-}
-
-GLOBAL function planHohmantoTransfer{
-    parameter targetOrbit.
-    parameter atTime.
-
-    local r1 is ship:orbit:SEMIMAJORAXIS. 
-    local r2 is targetOrbit:SEMIMAJORAXIS.
-
-    local dV1 is visViva(r1, (r1 + r2)/2, ship:body) - visViva(r1, r1, ship:body). // 
-    ADD NODE(atTime, 0, 0, dV1).//TODO make this ASAP?
-}
-
-GLOBAL function hohmanTransitTime{
-    parameter targetOrbit.
-
-    local meanTargetAlt is (targetOrbit:APOAPSIS + targetOrbit:PERIAPSIS) / 2.
-    local r1 is ship:orbit:semimajoraxis.
-    local r2 is ship:orbit:semimajoraxis.
-    return CONSTANT():PI * sqrt(((r1+r2)/2)^3 / ship:body:MU).
-}
-
-GLOBAL function planHohmanToOrbit{ // assuming a roughly circular starting orbit
-//todo
-    parameter targetOrbit.
-    parameter atTime.
-
-    local r1 is ship:orbit:SEMIMAJORAXIS. 
-    local r2 is targetOrbit:SEMIMAJORAXIS.
-
-    planHohmantoTransfer(targetOrbit, atTime).
-
-    local dV2 is visViva(r2, r2, ship:body) - visViva(r2, (r1+r2)/2, ship:body).
-    
-    ADD NODE(atTime + hohmanTransitTime, 0, 0, dV2).
-}
-
-GLOBAL function planHohmanToIntercept{
-    parameter target.
-
-    //The transit time for the maneuver for the hohmann transfer orbit
-    local transitTime is hohmanTransitTime(target:ORBIT).
-    //targets TA at time now + transitTime (this will lag the actual position, because we'll have to orbit to the transfer burn).
-    local targetTAatTransfer is trueAnomalyAtTime(target, TIME:SECONDS + transitTime).
-    //We're going to transfer burn 180 out from the targets predicted position after t+transitTime.
-    local longitudeOfTransferBurn0 is mod((targetTAatTransfer + 180), 360).
-    //trueLongitude of that longitude of transfer burn.
-    local TLofTransferBurn is trueLongitude(longitudeOfTransferBurn0, target:orbit).
-
-    //current True Longitude of ship.
-    local shipTrueLong is trueLongitude(ship:orbit:TRUEANOMALY, ship:orbit).
-    //How any degrees we have to orbit until transfer time.
-    local degreesUntilTransfer is mod(TLofTransferBurn - shipTrueLong + 360, 360).
-    //Begin working on time until transfer:
-    local meanAnomalyAtTransfer is trueAnomalyToMeanAnomaly(ship:orbit:TRUEANOMALY + degreesUntilTransfer).
-    
-    local shipCurrentMeanAnomaly is ship:ORBIT:MEANANOMALYATEPOCH + meanMotion(ship) * (TIME:SECONDS - ship:ORBIT:EPOCH).
-    local secondsUntilTransfer is (meanAnomalyAtTransfer - shipCurrentMeanAnomaly) / meanMotion(ship:ORBIT).
-    planHohmanToTransfer(TIME:SECONDS + secondsUntilTransfer).
-
 }
 
 GLOBAL function meanMotion{
@@ -112,7 +52,7 @@ GLOBAL function trueAnomalyAtTime{
 GLOBAL function longitudeOfPeriapsis{
     parameter _orbit.
 
-    return mod(_orbit:LAN + _orbit:ARGUMENTOFPERIAPSIS, 360).
+    return _orbit:LAN + _orbit:ARGUMENTOFPERIAPSIS.
 
 }
 

@@ -1,5 +1,6 @@
 RunOncePath("0:/CONSOLE.ks").
 RunOncePath("0:/SHIP.ks").
+RunOncePath("0:/MANEUVER.ks").
 
 GLOBAL _LAUNCH_AZIMUTH is 90.
 GLOBAL _TARGET_APOAPSIS is 100000.
@@ -259,22 +260,11 @@ GLOBAL function doOrbitalInsertion{
     set _FLIGHT_STATUS to "Awaiting O.I. Maneuver".
 
     executeManeuver(OImaneuver, TRUE).
-
+    //Check if orbit achieved TODO
     set orbitAchieved to true.
 }
 
-GLOBAL function createOrbitalInsertionManeuver{
 
-    local mu is ship:BODY:mu.
-    local r1 is ship:BODY:radius + ship:PERIAPSIS.
-    local r2 is ship:BODY:radius + ship:APOAPSIS.
-
-    local v1 is sqrt(mu / r2) * (1 - sqrt((2 * r1) / (r1 + r2))).
-
-    return node((time:seconds + ship:Orbit:ETA:apoapsis) , 0 , 0 , v1).
-
-
-}
 
 GLOBAL function doDeorbit{
     parameter target_periapsis.
@@ -299,23 +289,27 @@ set _FLIGHT_STATUS to "Reentry".
 LOCK STEERING to RETROGRADE.
 wait until ship:altitude < 75000.
 
-notify("Decoupling."). 
-local decoupled is false.
-for p in ship:rootpart:children{
-    if p:HASMODULE("ModuleDecouple"){
-        p:GETMODULE("ModuleDecouple"):doevent("Decouple").
-        set decoupled to true.
-    }
+notify("Decoupling.").
+if(reentryDecoupler:LENGTH = 1){
+    reentryDecoupler:GETMODULE("ModuleDecouple"):doEvent("Decouple").
 }
- if not decoupled{
-        for p in ship:rootpart:children {
-            for q in p:children{
-                if p:HASMODULE("ModuleDecouple"){
-                    q:GETMODULE("ModuleDecouple"):DOECENT("Decouple").
+else{
+local decoupled is false.
+    for p in ship:rootpart:children{
+        if p:HASMODULE("ModuleDecouple"){
+            p:GETMODULE("ModuleDecouple"):doevent("Decouple").
+            set decoupled to true.
+        }
+    }
+    if not decoupled{
+            for p in ship:rootpart:children {
+                for q in p:children{
+                    if p:HASMODULE("ModuleDecouple"){
+                        q:GETMODULE("ModuleDecouple"):DOECENT("Decouple").
+                    }
                 }
             }
         }
-    }
 
 wait 5.
 

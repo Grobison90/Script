@@ -1,4 +1,5 @@
 runOncePath("0:/SHIP.ks").
+runOncePath("0:/ORBITS.ks").
 
 GLOBAL function executeManeuver{
     parameter mnvr, isPrecise.
@@ -37,23 +38,23 @@ GLOBAL function calculateBurnTime {
     local function calculate{
         parameter dV, m0, mFlow, isp.
 
-        declare mt is CONSTANT:e ^(dV / (isp * CONSTANT:g0)) / m0.
+        local mt is CONSTANT:e ^(dV / (isp * CONSTANT:g0)) / m0.
         return (mt - m0)/mFlow.
 
     }
 
     if(deltaV < stage:DeltaV:Vacuum){
-        declare enginesThisStage is getEnginesByStage(ship:stagenum).
-        declare specImpulse is getAverageISP(enginesThisStage).
-        declare massFlow is sumEnginesMaxMassFlow(enginesThisStage).
+        local enginesThisStage is getEnginesByStage(ship:stagenum).
+        local specImpulse is getAverageISP(enginesThisStage).
+        local massFlow is sumEnginesMaxMassFlow(enginesThisStage).
         return calculate(deltaV, ship:mass, massFlow, specImpulse).
 
     } else {
-        declare time1 is getStageBurnTime(ship:stagenum).
-        declare massNextStage is getStageMass(ship:stagenum-1).
-        declare enginesNextStage is getEnginesByStage(ship:stagenum - 1).
-        declare specImpulseNextStage is getAverateISP(enginesNextStage).
-        declare massflowNextStage is sumEnginesMaxMassFlow(enginesNextStage).
+        local time1 is getStageBurnTime(ship:stagenum).
+        local massNextStage is getStageMass(ship:stagenum-1).
+        local enginesNextStage is getEnginesByStage(ship:stagenum - 1).
+        local specImpulseNextStage is getAverateISP(enginesNextStage).
+        local massflowNextStage is sumEnginesMaxMassFlow(enginesNextStage).
         return time1 + calculate(deltaV - stage:DELTAV:VACUUM, massNextStage, massflowNextStage, specImpulseNextStage).
     }
 }
@@ -63,5 +64,88 @@ GLOBAL function calculateBurnStartTime{
 
     return mnvr:time - calculateBurnTime(mnvr:deltaV:mag) / 2.
 }
+
+GLOBAL function createOrbitalInsertionManeuver{
+    
+    local mu is ship:BODY:mu.
+    local r1 is ship:BODY:radius + ship:PERIAPSIS.
+    local r2 is ship:BODY:radius + ship:APOAPSIS.
+
+    local v1 is sqrt(mu / r2) * (1 - sqrt((2 * r1) / (r1 + r2))).
+
+    return node((time:seconds + ship:Orbit:ETA:apoapsis) , 0 , 0 , v1).
+}
+
+GLOBAL function planHohmann1{//Creates the first of 2 maneuvers in a hohmann transfer.
+    parameter targetOrbit.
+    parameter fromOrbit.
+    parameter atTime.
+
+    local r1 is fromOrbit:SEMIMAJORAXIS. 
+    local r2 is targetOrbit:SEMIMAJORAXIS.
+
+    local dV1 is visViva(r1, (r1 + r2)/2, ship:body) - visViva(r1, r1, ship:body). // 
+    ADD NODE(atTime, 0, 0, dV1).//TODO make this ASAP?
+}
+
+GLOBAL function planHohmann2{//Creates the second maneuver of a hohmann transfer.
+    parameter targetOrbit.
+    parameter fromOrbit.
+    parameter atTime.
+
+    local r1 is fromOrbit:SEMIMAJORAXIS.
+    local r2 is targetOrbit:SEMIMAJORAXIS.
+
+    local dV is visViva(r2, r2, fromOrbit:BODY) - visViva(r2, (r1+r2)/2, fromOrbit:BODY).
+    ADD NODE(atTime, 0, 0, dV).
+
+}
+
+GLOBAL function hohmannTransferPeriod{
+    parameter targetOrbit.
+    parameter currentOrbit.
+
+    local r1 is currentOrbit:semimajoraxis.
+    local r2 is targetOrbit:semimajoraxis.
+    return CONSTANT():PI * sqrt(((r1+r2)/2)^3 / ship:body:MU).
+}
+
+GLOBAL function planHohmannToOrbit{ // assuming a roughly circular starting orbit
+//todo
+    parameter targetOrbit.
+    parameter atTime.
+
+    local r1 is ship:orbit:SEMIMAJORAXIS. 
+    local r2 is targetOrbit:SEMIMAJORAXIS.
+
+    planHohmann1(targetOrbit, ship:ORBIT, atTime).
+    planHohmann2(targetOrbit, ship:ORBIT, hohmannTransferPeriod(targetOrbit, SHIP:ORBIT)).
+
+}
+
+GLOBAL function transferPhaseAngle{//Transit time = (theta)/360 * Period, solve for theta.
+    parameter trgtOrbit.
+    parameter currentOrbit.
+
+    local transitTime is hohmannTransferPeriod(trgtOrbit, currentOrbit)/2.
+
+    return (transitTime * 360) / trgtOrbit:PERIOD.
+
+}
+
+GLOBAL function planHohmannToIntercept{//TODO test this.
+    parameter trgt.
+
+    local targetPhaseAngle is transferPhaseAngle(trgt:ORBIT, ship:ORBIT).
+    local targetTrueLong is trueLongitude(trgt:orbit:trueanomaly, target:orbit).
+    local vesselTrueLong is trueLongitude(ship:orbit:trueanomaly, ship:orbit).
+    local currentPhaseAngle is targetTrueLong - vesselTrueLong.
+    local phaseRate is (360/ship:orbit:period) - (360/target:orbit:period).
+    local timeUntilTransfer is mod((targetPhaseAngle - currentPhaseAngle) + 360, 360) / phaseRate.//?MOD HERE?TODO
+
+    planHohmann1(trgt:ORBIT, TIME:SECONDS + timeUntilTransfer).
+}
+
+
 
 
