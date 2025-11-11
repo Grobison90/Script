@@ -12,6 +12,7 @@ local curveConstant is 0.35. //this constant varies between 0 & 1 with values cl
 //Tracked data during launch.
 local launchEscapeTower is ship:PARTSTAGGED("LES").
 local reentryDecoupler is SHIP:PARTSTAGGED("REENTRY_DECOUPLER").
+local currentEngines is list().
 local maxDynPressure is 0.
 local maxQAchieved is false.
 local autoPilotOn is true.
@@ -109,9 +110,11 @@ GLOBAL function doBoostUp {
     parameter speedThresh is 50.
     parameter altThresh is 200.
 
+    
     SET _FLIGHT_STATUS TO("Boost-Up"). 
     lock throttle to 1.
     lock steering to UP * R(0,0,180).//TODO is this right?
+    doSafeStage().
 
     on (ship:airspeed > 0.5) {
         notify("Liftoff").
@@ -160,10 +163,18 @@ GLOBAL function launchTargetPitch{
 }
 
 GLOBAL function doStaging{
+    list ENGINES in currentEngines.
+    
     if not stagingLock{
-        if (stage:DELTAV:current < 0.05) {
-        doSafeStage(). 
-        }
+        for e in currentEngines{
+        if (e:flameout) { 
+            doSafeStage().
+            break.}
+
+    }
+        // if (stage:DELTAV:current < 0.05) {
+        // doSafeStage(). 
+        // }
     }
 }
 
@@ -268,7 +279,7 @@ GLOBAL function doOrbitalInsertion{
 
 GLOBAL function doDeorbit{
     parameter target_periapsis.
-    parameter atTime.
+    parameter atTime is TIME:SECONDS + 10.
 
     until (TIME:SECONDS >= atTime){
         set _FLIGHT_STATUS to "De-Orbit Burn in: " + round(atTime - TIME:SECONDS).
@@ -320,6 +331,7 @@ deploySafeChutes().
 unlock steering.
 wait until ship:STATUS = "Landed" or ship:STATUS = "Splashed".
 
+}
 }
 
 GLOBAL function deploySafeChutes{

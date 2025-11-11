@@ -60,7 +60,7 @@ GLOBAL function trueLongitude{
     parameter TA.
     parameter _orbit.
 
-    return mod(TA + longitudeOfPeriapsis(_orbit)).
+    return mod(TA + longitudeOfPeriapsis(_orbit), 360).
     
 }
 
