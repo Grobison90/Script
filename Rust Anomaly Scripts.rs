@@ -85,7 +85,7 @@ pub fn anomaly_true_to_eccentric(anm_true: f64, e: f64, as_degrees: bool) -> f64
         anm_true
     };
 
-    let anm_ecc = (anm_true.sin() * (1.0 - e.powi(2)).sqrt()).atan2(anm_true.cos() + e);
+    let 
 
     if as_degrees == true {
         anm_ecc * 180.0 / PI

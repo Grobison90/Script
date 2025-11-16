@@ -90,12 +90,21 @@ GLOBAL function planCircularize{
     planHohmann2(targetOrbit, ship:orbit, TIME:SECONDS + deltaT).
 }
 
-GLOBAL function planHohmann1{//Creates the first of 2 maneuvers in a hohmann transfer.
-    parameter targetOrbit.
-    parameter fromOrbit.
+GLOBAL function planHohmannToRadius{
+    parameter radius.
     parameter atTime.
 
-    local r1 is fromOrbit:SEMIMAJORAXIS. 
+    local shipTAatT is trueAnomalyAtTime(ship, atTime).
+    local HTO_SMA is (radiusAtTrueAnomaly(shipTAatT) + radius) / 2.
+    local shipVatT is velocityAtTrueAnomaly(shipTAatT).
+    return visViva(HTO_SMA, HTO_SMA, SHIP:BODY) - shipVatT.
+}
+
+GLOBAL function planHohmann1{//Creates the first of 2 maneuvers in a hohmann transfer.
+    parameter targetOrbit.
+    parameter atTime.
+
+    local r1 is ship:ORBIT:SEMIMAJORAXIS. 
     local r2 is targetOrbit:SEMIMAJORAXIS.
 
     local dV1 is visViva(r1, (r1 + r2)/2, ship:body) - visViva(r1, r1, ship:body). // 
@@ -104,13 +113,12 @@ GLOBAL function planHohmann1{//Creates the first of 2 maneuvers in a hohmann tra
 
 GLOBAL function planHohmann2{//Creates the second maneuver of a hohmann transfer.
     parameter targetOrbit.
-    parameter fromOrbit.
     parameter atTime.
 
-    local r1 is fromOrbit:SEMIMAJORAXIS.
+    local r1 is SHIP:ORBIT:SEMIMAJORAXIS.
     local r2 is targetOrbit:SEMIMAJORAXIS.
 
-    local dV is visViva(r2, r2, fromOrbit:BODY) - visViva(r2, (r1+r2)/2, fromOrbit:BODY).
+    local dV is visViva(r2, r2, SHIP:BODY) - visViva(r2, (r1+r2)/2, SHIP:BODY).
     ADD NODE(atTime, 0, 0, dV).
 
 }
@@ -141,40 +149,43 @@ GLOBAL function planHohmannToOrbit{ // assuming a roughly circular starting orbi
 GLOBAL function phaseAngle{
     parameter trgtBody.
     parameter fromBody.
+    local trgtMA is trueAnomalyToMeanAnomaly(trgtBody:ORBIT:TRUEANOMALY, trgtBody:ORBIT:ECCENTRICITY).
+    local fromMA is trueAnomalyToMeanAnomaly(fromBody:ORBIT:TRUEANOMALY, fromBody:ORBIT:ECCENTRICITY).
 
-    return mod(trueLongitude(trgtBody:ORBIT:TRUEANOMALY, trgtBody:ORBIT) - trueLongitude(fromBody:ORBIT:TRUEANOMALY, fromBody:ORBIT) + 360, 360).
+    return mod(trueLongitude(trgtMA, trgtBody:ORBIT) - trueLongitude(fromMA, fromBody:ORBIT) + 360, 360).
 }
 
-GLOBAL function transferPhaseAngle{//Transit time = (theta)/360 * Period, solve for theta.
+GLOBAL function transferPhaseAngle{//Transit time = (theta)/360 * Period, solve for theta. 
     parameter trgtOrbit.
     parameter currentOrbit.
 
     local transitTime is hohmannTransferPeriod(trgtOrbit, currentOrbit).
 
-    return mod((180 - (transitTime * 360) / trgtOrbit:PERIOD) + 360, 360).
+    return mod((180 - (transitTime * 360) / trgtOrbit:PERIOD) + 360, 360).//This will be in "mean anomaly" terms.
 
 }
+
+
 
 GLOBAL function planHohmannToIntercept{//TODO test this.
     parameter trgt.
 
-    local targetPhaseAngle is transferPhaseAngle(trgt:ORBIT, ship:ORBIT).
-    // PRINT("Target PA: " + targetPhaseAngle).
+    local targetPhaseAngle is transferPhaseAngle(trgt:ORBIT, ship:ORBIT).// This will be given in Mean Anomaly degrees.
+    PRINT("Target PA: " + targetPhaseAngle).
     local currentPhaseAngle is phaseAngle(trgt, ship).
-    // PRINT("Current PA: " + currentPhaseAngle).
+    PRINT("Current PA: " + currentPhaseAngle).
     local phaseRate is (360/ship:orbit:period) - (360/trgt:orbit:period).
-    // PRINT("Phase Rate: " + phaseRate).
-    local degreesUntilTransfer is 0.
-    if(phaseRate >=0){
-        set degreesUntilTransfer to mod(currentPhaseAngle - targetPhaseAngle + 360, 360).
-    }else{
-        set degreesUntilTransfer to targetPhaseAngle - currentPhaseAngle.
-    }
-    // PRINT("degrees Until: " + degreesUntilTransfer).
+    PRINT("Phase Rate: " + phaseRate).
+    local degreesUntilTransfer is targetPhaseAngle - currentPhaseAngle.
+    
+    PRINT("degrees Until: " + degreesUntilTransfer).
 
-    local timeUntilTransfer is degreesUntilTransfer / abs(phaseRate).
-    // PRINT("ETA " + timeUntilTransfer).
-    planHohmann1(trgt:ORBIT, ship:ORBIT, TIME:SECONDS + timeUntilTransfer).
+    local timeUntilTransfer is degreesUntilTransfer / phaseRate.
+    PRINT("ETA " + timeUntilTransfer).
+    local departureTime is
+    local arrivalTime is TIME:SECONDS + timeUntilTransfer + //?
+
+    planHohmannToRadius(trgt:ORBIT, ship:ORBIT, TIME:SECONDS + timeUntilTransfer).
 }
 
 
