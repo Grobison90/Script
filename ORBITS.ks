@@ -169,6 +169,17 @@ GLOBAL function vectorToRelativeDN{//todo No idea if this works.
     
 }
 
+GLOBAL function radiusAtTrueAnomaly{
+    parameter TA.
+    parameter _orbit.
+
+    local a is _orbit:SEMIMAJORAXIS.
+    local e is _orbit:ECCENTRICITY.
+
+    return (a * (1 - e^2)) / (1 + e * COS(TA)).
+}
+
+
 GLOBAL function vectorToNormal{
     parameter orb.
 
