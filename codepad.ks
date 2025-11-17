@@ -6,20 +6,30 @@ runOncePath("0:/RENDEZVOUS.ks").
 runOncePath("0:/MATH.ks").
 CLEARSCREEN.
 
-local targetObj is MUN.
-local phaseMargin is 5.
-//Initial Conditions.
-local t is TIME:SECONDS.
-local Vlong is trueLongitude(trueAnomaly(ship:ORBIT), ship:ORBIT).
-local Tlong is trueLongitude(trueAnomaly(targetObj:ORBIT), targetObj:ORBIT).
-local r_tgt is radiusAtTrueAnomaly(mod(Vv + 180, 360), targetObj:ORBIT). ///SHIT, need to be working in True Longitude.
-local r_shp is radiusAtTrueAnomaly(Vv, ship:ORBIT).
+local targetObj is VESSEL("kOS TARGET VEHICLE").
 
+    //Get a place to start our search from.
+local calcStartTime is TIME:SECONDS.
+local targetPhaseAngle is transferPhaseAngleSimple(targetObj:ORBIT, ship:ORBIT).// This will be given in Mean Anomaly degrees.
+PRINT("Target PA: " + targetPhaseAngle).
+local currentPhaseAngle is phaseAngle(targetObj, ship).
+PRINT("Current PA: " + currentPhaseAngle).
+local phaseRate is (360/ship:orbit:period) - (360/targetObj:orbit:period).
+PRINT("Phase Rate: " + phaseRate).
+local degreesUntilTransfer is targetPhaseAngle - currentPhaseAngle.
+PRINT("degrees Until: " + degreesUntilTransfer).
+local timeUntilTransfer is degreesUntilTransfer / phaseRate.
+PRINT("ETA " + timeUntilTransfer).
 
-local hohmannTransferTime is 
-local currentPhaseANgle is phaseAngle(ta0rgetObj:ORBIT, ship:ORBIT).
-local targetPhaseAngle is 180 * (1 - hohmannTransferTime.
+//Start calculating a real transfer at the time estimate.
+local shipTAatDeparture is trueAnomalyAtTime(SHIP, calcStartTime + timeUntilTransfer).
+print("Ship TA at Departure: " + shipTAatDeparture).
+local shipRadiusAtDeparture is radiusAtTrueAnomaly(shipTAatDeparture, ship:ORBIT).
+local rendezvousTL is trueAnomalyToTrueLongitude(shipTAatDeparture + 180, ship:ORBIT).
+local rendezvousRadius is radiusAtTrueAnomaly(trueLongitudeToTrueAnomaly(rendezvousTL, targetObj:ORBIT), targetObj:ORBIT).
+local SMAofTransfer is (shipRadiusAtDeparture + rendezvousRadius) / 2.
+local TOF is period(SMAofTransfer, ship:ORBIT:BODY)/2.
+PRINT("Time of Flight: " + TOF).
 
-if abs(currentPhaseAngle - targetPhaseAngle) > Phasemargin{
-
-}
+local targetTLatArrival is mod(trueAnomalyToTrueLongitude(trueAnomalyAtTime(targetObj, calcStartTime + timeUntilTransfer + TOF), targetObj:ORBIT), 360).
+PRINT("Target TL at Arrival: " + targetTLatArrival).

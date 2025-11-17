@@ -22,6 +22,13 @@ GLOBAL function visViva{
     return sqrt(parentBody:MU * ((2 / radius) - (1 / SMA))).
 }
 
+GLOBAL function period{
+    parameter SMA.
+    parameter parentBody.
+
+    return 2 * CONSTANT:PI * sqrt((SMA^3) / parentBody:MU).
+}
+
 GLOBAL function meanMotion{
     parameter _orbit.
 
@@ -32,7 +39,7 @@ GLOBAL function radiusAtTrueAnomaly{
     parameter _TA.
     parameter _Orb.
 
-    local numerator is _orb:SMA * (1-_orb:Eccentricity^2).
+    local numerator is _orb:SEMIMAJORAXIS * (1-_orb:Eccentricity^2).
     local denomenator is 1 + _orb:eccentricity*cos(_TA).
     return numerator / denomenator.
 }
@@ -43,7 +50,7 @@ GLOBAL function velocityAtTrueAnomaly{
 
     local radius is radiusAtTrueAnomaly(_TA, _orb).
 
-    return visViva(radius, _orb:SMA, _orb:BODY).
+    return visViva(radius, _orb:SEMIMAJORAXIS, _orb:BODY).
 }
 
 GLOBAL function meanAnomaly{
@@ -60,9 +67,9 @@ GLOBAL function trueAnomalyAtTime{//TODO not sure this is right.
     parameter satellite.
     parameter t.
 
-    local meanMotion to meanMotion(satellite:ORBIT).
+    local n to meanMotion(satellite:ORBIT).
     local deltaT to t - satellite:ORBIT:EPOCH.
-    local meanAnomalyAtT to mod(((deltaT * meanMotion) + satellite:ORBIT:MEANANOMALYATEPOCH), 360).
+    local meanAnomalyAtT to mod((deltaT * n) + satellite:ORBIT:MEANANOMALYATEPOCH, 360).
     return meanAnomalyToTrueAnomaly(meanAnomalyAtT, satellite:ORBIT:ECCENTRICITY).
 }
 
@@ -73,13 +80,13 @@ GLOBAL function longitudeOfPeriapsis{
 
 }
 
-GLOBAL function trueLongitude{
+GLOBAL function trueAnomalyToTrueLongitude{
     parameter TA.
     parameter _orbit.
     return mod(TA + longitudeOfPeriapsis(_orbit), 360).
 }
 
-GLOBAL function trueLongToTrueAnomaly{
+GLOBAL function trueLongitudeToTrueAnomaly{
     parameter TL.
     parameter _orbit.
     return mod(TL - longitudeOfPeriapsis(_orbit) + 360, 360).

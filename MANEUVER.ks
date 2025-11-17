@@ -123,7 +123,7 @@ GLOBAL function planHohmann2{//Creates the second maneuver of a hohmann transfer
 
 }
 
-GLOBAL function hohmannTransferPeriod{
+GLOBAL function hohmannTransferPeriodSimple{//Simplified version assuming circular orbits.
     parameter targetOrbit.
     parameter currentOrbit.
 
@@ -139,7 +139,7 @@ GLOBAL function planHohmannToOrbit{ // assuming a roughly circular starting orbi
 
     local r1 is ship:orbit:SEMIMAJORAXIS. 
     local r2 is targetOrbit:SEMIMAJORAXIS.
-    local transitTime is hohmannTransferPeriod(targetOrbit, ship:ORBIT).
+    local transitTime is hohmannTransferPeriodSimple(targetOrbit, ship:ORBIT).
 
     planHohmann1(targetOrbit, ship:ORBIT, atTime).
     planHohmann2(targetOrbit, ship:ORBIT, atTime + transitTime).
@@ -149,17 +149,17 @@ GLOBAL function planHohmannToOrbit{ // assuming a roughly circular starting orbi
 GLOBAL function phaseAngle{
     parameter trgtBody.
     parameter fromBody.
-    local trgtMA is trueAnomalyToMeanAnomaly(trgtBody:ORBIT:TRUEANOMALY, trgtBody:ORBIT:ECCENTRICITY).
-    local fromMA is trueAnomalyToMeanAnomaly(fromBody:ORBIT:TRUEANOMALY, fromBody:ORBIT:ECCENTRICITY).
+    local trgtTA is trgtBody:ORBIT:TRUEANOMALY.
+    local fromTA is fromBody:ORBIT:TRUEANOMALY.
 
-    return mod(trueLongitude(trgtMA, trgtBody:ORBIT) - trueLongitude(fromMA, fromBody:ORBIT) + 360, 360).
+    return mod(trueAnomalyToTrueLongitude(trgtTA, trgtBody:ORBIT) - trueAnomalyToTrueLongitude(fromTA, fromBody:ORBIT), 360).
 }
 
-GLOBAL function transferPhaseAngle{//Transit time = (theta)/360 * Period, solve for theta. 
+GLOBAL function transferPhaseAngleSimple{//Assumes circular orbits.
     parameter trgtOrbit.
     parameter currentOrbit.
 
-    local transitTime is hohmannTransferPeriod(trgtOrbit, currentOrbit).
+    local transitTime is hohmannTransferPeriodSimple(trgtOrbit, currentOrbit).
 
     return mod((180 - (transitTime * 360) / trgtOrbit:PERIOD) + 360, 360).//This will be in "mean anomaly" terms.
 
@@ -170,7 +170,7 @@ GLOBAL function transferPhaseAngle{//Transit time = (theta)/360 * Period, solve 
 GLOBAL function planHohmannToIntercept{//TODO test this.
     parameter trgt.
 
-    local targetPhaseAngle is transferPhaseAngle(trgt:ORBIT, ship:ORBIT).// This will be given in Mean Anomaly degrees.
+    local targetPhaseAngle is transferPhaseAngleSimple(trgt:ORBIT, ship:ORBIT).// This will be given in Mean Anomaly degrees.
     PRINT("Target PA: " + targetPhaseAngle).
     local currentPhaseAngle is phaseAngle(trgt, ship).
     PRINT("Current PA: " + currentPhaseAngle).
@@ -183,7 +183,6 @@ GLOBAL function planHohmannToIntercept{//TODO test this.
     local timeUntilTransfer is degreesUntilTransfer / phaseRate.
     PRINT("ETA " + timeUntilTransfer).
     local departureTime is
-    local arrivalTime is TIME:SECONDS + timeUntilTransfer + //?
 
     planHohmannToRadius(trgt:ORBIT, ship:ORBIT, TIME:SECONDS + timeUntilTransfer).
 }
